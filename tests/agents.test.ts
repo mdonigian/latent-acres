@@ -77,11 +77,11 @@ describe('Perception', () => {
     const agent = getAgent(db, 'agent1')!;
     const perception = buildPerception(db, agent, 'The Beach', 'Sandy', 12);
 
-    expect(perception.otherAgents).toHaveLength(2);
-    const names = perception.otherAgents.map(a => a.name);
+    expect(perception.otherAgentsHere).toHaveLength(2);
+    const names = perception.otherAgentsHere.map(a => a.name);
     expect(names).toContain('Agent2');
     expect(names).toContain('Agent3');
-    for (const other of perception.otherAgents) {
+    for (const other of perception.otherAgentsHere) {
       expect(other.appearance).toBeTruthy();
     }
   });

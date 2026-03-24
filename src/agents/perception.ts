@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
-import { AgentRow, getAgentInventory, getResourcesAtLocation, getLivingAgents, getSimulation } from '../db/queries.js';
+import { AgentRow, getAgentInventory, getResourcesAtLocation, getLivingAgents, getSimulation, getLocation } from '../db/queries.js';
+import { DEFAULT_ISLAND } from '../world/island.js';
 
 export interface AgentVisibleState {
   name: string;
@@ -23,8 +24,10 @@ export interface PerceptionPayload {
     name: string;
     description: string;
     resources: ResourceEstimate[];
+    adjacentLocations: { id: string; name: string }[];
   };
-  otherAgents: AgentVisibleState[];
+  otherAgentsHere: AgentVisibleState[];
+  otherAgentsElsewhere: { name: string; location: string }[];
   publicKnowledge: {
     eliminatedAgents: string[];
     currentEpoch: number;
@@ -80,11 +83,22 @@ export function buildPerception(
     availability: getResourceAvailability(r.quantity, r.max_quantity),
   }));
 
-  const eliminatedAgents = allAgents
-    .filter(() => false) // only dead/eliminated
-    .map(a => a.name);
-  // Actually get eliminated agents
-  const allAgentsIncludingDead = db.prepare('SELECT name FROM agents WHERE is_alive = 0 OR is_eliminated = 1').all() as { name: string }[];
+  // Adjacent locations
+  const currentIslandLoc = DEFAULT_ISLAND.find(l => l.id === agent.location_id);
+  const adjacentLocations = (currentIslandLoc?.connectedTo ?? []).map(id => {
+    const loc = getLocation(db, id);
+    return { id, name: loc?.name ?? id };
+  });
+
+  // Agents elsewhere on the island (public knowledge — you know who's alive)
+  const agentsElsewhere = allAgents
+    .filter(a => a.id !== agent.id && a.location_id !== agent.location_id)
+    .map(a => {
+      const loc = getLocation(db, a.location_id);
+      return { name: a.name, location: loc?.name ?? a.location_id };
+    });
+
+  const allAgentsIncludingDead = db.prepare('SELECT name FROM agents WHERE is_alive = 0 OR is_banished = 1').all() as { name: string }[];
 
   const ticksUntilCouncil = ticksPerEpoch - (sim.current_tick % ticksPerEpoch);
 
@@ -120,8 +134,10 @@ export function buildPerception(
       name: locationName,
       description: locationDescription,
       resources: resourceEstimates,
+      adjacentLocations,
     },
-    otherAgents: otherAgentsHere,
+    otherAgentsHere,
+    otherAgentsElsewhere: agentsElsewhere,
     publicKnowledge: {
       eliminatedAgents: allAgentsIncludingDead.map(a => a.name),
       currentEpoch: sim.current_epoch,

@@ -17,22 +17,25 @@ interface EventDef {
 const EVENT_DEFINITIONS: EventDef[] = [
   {
     name: 'tropical_storm',
-    probability: 0.08,
+    probability: 0.03,
     trigger(db, rng, tick, epoch) {
-      const locations = getAllLocations(db);
       const agents = getLivingAgents(db);
-      const damage = rng.randomInt(5, 15);
+      const damage = rng.randomInt(3, 8);
       const affected: string[] = [];
 
       for (const agent of agents) {
-        // Unsheltered agents take damage
-        updateAgentStats(db, agent.id, { health: Math.max(0, agent.health - damage) });
-        affected.push(agent.name);
+        // Only agents in dangerous locations take full damage, others take half
+        const dangerLocs = new Set(['the_summit', 'rocky_ridge', 'the_beach']);
+        const actualDamage = dangerLocs.has(agent.location_id) ? damage : Math.floor(damage / 2);
+        if (actualDamage > 0) {
+          updateAgentStats(db, agent.id, { health: Math.max(0, agent.health - actualDamage) });
+          affected.push(agent.name);
+        }
       }
 
       return {
         name: 'tropical_storm',
-        description: `A tropical storm hits the island! ${affected.length} agents take ${damage} damage.`,
+        description: `A tropical storm hits the island! ${affected.length} agents take damage.`,
         effects: { damage, affectedAgents: affected },
       };
     },
@@ -61,13 +64,13 @@ const EVENT_DEFINITIONS: EventDef[] = [
   },
   {
     name: 'illness_outbreak',
-    probability: 0.05,
+    probability: 0.03,
     trigger(db, rng, tick, epoch) {
       const agents = getLivingAgents(db);
       if (agents.length === 0) return null;
 
       const victim = rng.pick(agents);
-      const healthLoss = rng.randomInt(5, 15);
+      const healthLoss = rng.randomInt(3, 8);
       updateAgentStats(db, victim.id, { health: Math.max(0, victim.health - healthLoss) });
 
       return {

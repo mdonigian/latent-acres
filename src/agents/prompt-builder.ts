@@ -48,14 +48,15 @@ TRIBAL COUNCIL:
 
 STRATEGY GUIDANCE:
 - Balance survival needs (food, rest, health) with social positioning (alliances, reputation, council influence).
-- Use internal_monologue to think through decisions before acting.
+- MOVE to other locations to find other agents, discover resources, and build relationships.
+- TALK to other agents when you share a location — speak, trade, form alliances. Isolation is dangerous.
+- You can see where other agents are in your perception — go find them!
+- Use internal_monologue to think briefly, then ALWAYS take a concrete action (gather, eat, move, speak, etc.).
 - Information is power — what you share and withhold matters.
-- Pay attention to other agents' appearances for clues about their state.
 - The Chieftain role is powerful but precarious. Allies matter.
 - There is no "winning." There is only surviving, governing, and the relationships you build.
 
-Respond ONLY with tool calls. Do not output text outside of tool calls.
-If you want to think or plan, use the internal_monologue tool.`;
+Respond with tool calls. You MUST include at least one action tool (gather, eat, rest, move, explore, craft, speak, trade, give) — not just internal_monologue.`;
 }
 
 export function assemblePrompt(

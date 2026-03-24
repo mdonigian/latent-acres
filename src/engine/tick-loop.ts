@@ -27,12 +27,20 @@ function applyPassiveEffects(db: Database.Database): void {
   for (const agent of agents) {
     const newHunger = Math.min(100, agent.hunger + 8);
     let healthDelta = 0;
+
+    // Starvation damage
     if (newHunger > 95) {
       healthDelta = -15;
     } else if (newHunger > 80) {
       healthDelta = -5;
     }
-    const newHealth = Math.max(0, agent.health + healthDelta);
+
+    // Passive health regen when not starving (even without resting)
+    if (newHunger < 80 && agent.health < 100) {
+      healthDelta += 2;
+    }
+
+    const newHealth = Math.max(0, Math.min(100, agent.health + healthDelta));
     updateAgentStats(db, agent.id, { hunger: newHunger, health: newHealth });
   }
 }
