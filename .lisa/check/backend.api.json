@@ -1,0 +1,103 @@
+{
+  "specId": "backend.api",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/api.md",
+  "status": "UNSURE",
+  "summary": "REST endpoints and tests largely conform to spec, but several WebSocket message types are missing, mutation endpoints exist despite read-only invariant, and the 503 failure mode is unimplemented.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 2 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/api.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/status (routes.ts:17-29) returns tick, epoch, phase, status, livingAgents, totalAgents, cost — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/config (routes.ts:32-35) returns parsed config JSON — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/agents (routes.ts:39-42) returns all agents with health, hunger, energy, location, isAlive, isChieftain, isBanished — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/agents/:id (routes.ts:44-67) returns inventory, personality, relationships, shortTermMemory (last 20), journal — matches spec except spec says 'long-term memory summary' while impl returns journal entries."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/agents/:id/memory (routes.ts:89-93) returns full short-term memory buffer — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/agents/:id/thoughts (routes.ts:96-103) filters event_log by agent_id and event_type='internal_monologue' — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/locations (routes.ts:107-126) returns resources with qualitative availability, connected locations, present agents — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/map (routes.ts:128-144) returns nodes and edges — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/events (routes.ts:148-169) supports limit (default 50, max 500), offset, tick, epoch, agent_id, event_type params — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/events/world (routes.ts:171-174) returns world events — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/council/:epoch (routes.ts:185-197), /council/latest (178-183), /council/:epoch/votes (199-210) all present — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/relationships (routes.ts:214-217) returns {agentA, agentB, sentiment} — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/cost (routes.ts:254-263) returns totalCost and perTick history — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "GET /api/export/transcript (routes.ts:267-287) returns markdown with from_tick/to_tick params — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "WebSocket at /ws path (server.ts:147) broadcasts tick_complete, agent_death, world_event (server.ts:83-91). Missing spec'd types: council_started, council_motion, council_vote_result, council_adjourned, agent_banished."
+    },
+    {
+      "type": "code-audit",
+      "detail": "server.ts:120-142 defines POST /api/sim/start, /api/sim/pause, /api/sim/tick-delay — mutation endpoints that conflict with spec invariant 'API is read-only' and out-of-scope 'Write/mutation endpoints'."
+    },
+    {
+      "type": "code-audit",
+      "detail": "No middleware or guard returns 503 when database doesn't exist, as required by spec failure mode."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Secret vote endpoint /council/:epoch/votes (routes.ts:199) has no spoiler/admin marking in response or headers as required by spec invariant."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tests cover all acceptance criteria: status, agents, agents/:id, events with filters, locations, map, council, relationships, export/transcript, WebSocket tick_complete, and server startup. All tests pass per deterministic evidence."
+    }
+  ],
+  "issues": [
+    "WebSocket missing 5 of 8 spec'd message types: council_started, council_motion, council_vote_result, council_adjourned, agent_banished are never broadcast",
+    "POST mutation endpoints (/api/sim/start, /api/sim/pause, /api/sim/tick-delay) exist in server.ts despite spec invariant that API is read-only and Out of Scope stating mutation endpoints are CLI-only",
+    "No 503 response when database doesn't exist — spec failure mode 'If the database doesn't exist, return 503' is unimplemented",
+    "Secret vote endpoint /council/:epoch/votes lacks any spoiler/admin marking as required by spec invariant",
+    "Spec references 'long-term memory summary' in agents/:id but implementation returns journal entries instead — possible semantic drift"
+  ]
+}

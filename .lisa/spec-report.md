@@ -1,0 +1,252 @@
+# Lisa Spec Report
+
+- Generated: 2026-03-24T00:25:40.928Z
+- Mode: all
+- Profile: verifier
+- Harness: claude-code
+
+## Summary
+- PASS: 5
+- FAIL: 5
+- UNSURE: 1
+- SKIPPED: 0
+
+## Results
+
+### backend.agent-system - PASS
+
+- Path: .specs/backend/agent-system.md
+- Summary: All 7 acceptance criteria are covered by passing tests. Core spec requirements (personality loading/validation, Phase 1 tool definitions, qualitative perception, short-term memory buffer K=50, prompt assembly, orchestrator with dry-run and energy validation, BATCH_SIZE=4) are implemented correctly. One spec use-case (long-term memory compression via Claude API every M=6 ticks) is not implemented in the mapped code files.
+- Evidence (config): Matched 7 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/agents.test.ts
+- Evidence (code-audit): personality.ts: validates PersonalityProfile with traits, backstory, communicationStyle, values, optional hiddenAgenda, startingLocation, model — matches spec schema exactly
+- Evidence (code-audit): tools.ts: PHASE1_TOOLS defines all 8 Phase 1 tools (gather, craft, eat, rest, move, explore, internal_monologue, check_relationships) with typed parameter schemas and correct energy costs (gather=15, craft=10, move=10, explore=20)
+- Evidence (code-audit): perception.ts: getResourceAvailability returns 'scarce'/'moderate'/'abundant' based on ratio thresholds (0.3, 0.7) — agents never see exact quantities. getAgentAppearance returns visible cues ('looks exhausted', 'looks well-fed', etc.) — agents never see exact stats
+- Evidence (code-audit): perception.ts: PerceptionPayload includes self stats as exact numbers, otherAgents with visible cues, qualitative resources, recentMessages (public + whispers), publicKnowledge (eliminatedAgents, currentEpoch, ticksUntilCouncil)
+- Evidence (code-audit): memory.ts: SHORT_TERM_LIMIT=50, appendMemory calls trimShortTermMemory after each append. MemoryEntry includes tick, epoch, type, content, involvedAgents, importance — matches spec
+- Evidence (code-audit): prompt-builder.ts: assemblePrompt produces systemPrompt (personality injection + RULES + STRATEGY GUIDANCE), perceptionJson, memoryEntries, tickContext (currentTick, currentEpoch, ticksUntilTribalCouncil, actionsRemaining) — matches spec template
+- Evidence (code-audit): orchestrator.ts: BATCH_SIZE=4, processes agents in batches with Promise.all, dry-run mode uses heuristicActions without API calls, validates energy via validateAndFilterActions, catches API errors and logs+skips agent turn, caps real actions at actionsPerTick
+- Evidence (code-audit): orchestrator.ts: text-only responses (no tool calls) cause loop to break — effectively ignored per spec, though no explicit debug logging of the text content
+- Evidence (code-audit): tests/agents.test.ts: all 7 acceptance criteria have corresponding test cases that pass — vex.json loading, Phase 1 tools, perception with 2 agents at Beach, 60-append memory trimming to 50, prompt builder output, dry-run orchestration, energy validation (5 energy < 15 gather cost)
+- Issue: Long-term memory compression (spec: 'every M=6 ticks, call Claude to summarize short-term buffer into compressed first-person summary, max 800 words') is not implemented in memory.ts or any other mapped code file — journal entries are read but never written/generated via Claude API in these files
+- Issue: Orchestrator does not explicitly log text content when agent returns text without tool calls (spec: 'log for debugging') — it silently breaks the loop
+- Issue: model-adapter.ts contains a full OpenAI adapter implementation beyond what spec describes as a 'model-adapter stub' in out-of-scope section — not a violation but exceeds spec scope
+
+### backend.api - UNSURE
+
+- Path: .specs/backend/api.md
+- Summary: REST endpoints and tests largely conform to spec, but several WebSocket message types are missing, mutation endpoints exist despite read-only invariant, and the 503 failure mode is unimplemented.
+- Evidence (config): Matched 2 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/api.test.ts
+- Evidence (code-audit): GET /api/status (routes.ts:17-29) returns tick, epoch, phase, status, livingAgents, totalAgents, cost — matches spec.
+- Evidence (code-audit): GET /api/config (routes.ts:32-35) returns parsed config JSON — matches spec.
+- Evidence (code-audit): GET /api/agents (routes.ts:39-42) returns all agents with health, hunger, energy, location, isAlive, isChieftain, isBanished — matches spec.
+- Evidence (code-audit): GET /api/agents/:id (routes.ts:44-67) returns inventory, personality, relationships, shortTermMemory (last 20), journal — matches spec except spec says 'long-term memory summary' while impl returns journal entries.
+- Evidence (code-audit): GET /api/agents/:id/memory (routes.ts:89-93) returns full short-term memory buffer — matches spec.
+- Evidence (code-audit): GET /api/agents/:id/thoughts (routes.ts:96-103) filters event_log by agent_id and event_type='internal_monologue' — matches spec.
+- Evidence (code-audit): GET /api/locations (routes.ts:107-126) returns resources with qualitative availability, connected locations, present agents — matches spec.
+- Evidence (code-audit): GET /api/map (routes.ts:128-144) returns nodes and edges — matches spec.
+- Evidence (code-audit): GET /api/events (routes.ts:148-169) supports limit (default 50, max 500), offset, tick, epoch, agent_id, event_type params — matches spec.
+- Evidence (code-audit): GET /api/events/world (routes.ts:171-174) returns world events — matches spec.
+- Evidence (code-audit): GET /api/council/:epoch (routes.ts:185-197), /council/latest (178-183), /council/:epoch/votes (199-210) all present — matches spec.
+- Evidence (code-audit): GET /api/relationships (routes.ts:214-217) returns {agentA, agentB, sentiment} — matches spec.
+- Evidence (code-audit): GET /api/cost (routes.ts:254-263) returns totalCost and perTick history — matches spec.
+- Evidence (code-audit): GET /api/export/transcript (routes.ts:267-287) returns markdown with from_tick/to_tick params — matches spec.
+- Evidence (code-audit): WebSocket at /ws path (server.ts:147) broadcasts tick_complete, agent_death, world_event (server.ts:83-91). Missing spec'd types: council_started, council_motion, council_vote_result, council_adjourned, agent_banished.
+- Evidence (code-audit): server.ts:120-142 defines POST /api/sim/start, /api/sim/pause, /api/sim/tick-delay — mutation endpoints that conflict with spec invariant 'API is read-only' and out-of-scope 'Write/mutation endpoints'.
+- Evidence (code-audit): No middleware or guard returns 503 when database doesn't exist, as required by spec failure mode.
+- Evidence (code-audit): Secret vote endpoint /council/:epoch/votes (routes.ts:199) has no spoiler/admin marking in response or headers as required by spec invariant.
+- Evidence (code-audit): Tests cover all acceptance criteria: status, agents, agents/:id, events with filters, locations, map, council, relationships, export/transcript, WebSocket tick_complete, and server startup. All tests pass per deterministic evidence.
+- Issue: WebSocket missing 5 of 8 spec'd message types: council_started, council_motion, council_vote_result, council_adjourned, agent_banished are never broadcast
+- Issue: POST mutation endpoints (/api/sim/start, /api/sim/pause, /api/sim/tick-delay) exist in server.ts despite spec invariant that API is read-only and Out of Scope stating mutation endpoints are CLI-only
+- Issue: No 503 response when database doesn't exist — spec failure mode 'If the database doesn't exist, return 503' is unimplemented
+- Issue: Secret vote endpoint /council/:epoch/votes lacks any spoiler/admin marking as required by spec invariant
+- Issue: Spec references 'long-term memory summary' in agents/:id but implementation returns journal entries instead — possible semantic drift
+
+### backend.cli - FAIL
+
+- Path: .specs/backend/cli.md
+- Summary: Two CLI commands specified in the spec (`generate-agents` and `add-agent`) are not implemented. Other commands, configuration, utilities, and tests conform well.
+- Evidence (config): Matched 5 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/cli.test.ts
+- Evidence (code-audit): src/index.ts implements init, run, pause, status, inspect commands but is missing `generate-agents --count <n> --seed <n>` and `add-agent <path>` commands required by the spec.
+- Evidence (code-audit): src/config.ts DEFAULT_CONFIG matches spec defaults: ticksPerEpoch=12, actionsPerTick=2, tickDelayMs=1000, discussionRounds=3, dbPath='data/latent-acres.db'.
+- Evidence (code-audit): src/utils/cost-tracker.ts: MAX_COST_PER_TICK=0.50, COST_WARNING_THRESHOLD=50.00, estimateCost and trackCost persist to DB — all match spec.
+- Evidence (code-audit): src/utils/rate-limiter.ts: BATCH_SIZE=4, INTER_BATCH_DELAY_MS=500, batched Promise.all enforces concurrency limit — matches spec.
+- Evidence (code-audit): src/utils/logger.ts: structured output with timestamps and categories; logTickSummary provides per-tick summary — matches spec.
+- Evidence (code-audit): src/index.ts:33-42 init refuses to overwrite existing DB unless --force is passed — satisfies invariant.
+- Evidence (code-audit): src/index.ts:135 run resumes from last completed tick via getSimulation(db).current_tick — satisfies invariant.
+- Evidence (code-audit): src/index.ts:86 run command also accepts OPENAI_API_KEY as alternative to ANTHROPIC_API_KEY; spec only mentions ANTHROPIC_API_KEY.
+- Evidence (code-audit): tests/cli.test.ts covers config defaults, status output, inspect agent stats/inventory, dry-run tick execution, cost accumulation, rate limiter concurrency — all acceptance criteria tested.
+- Issue: Missing CLI command: `generate-agents --count <n> --seed <n>` (use Claude to auto-generate agent JSON files) is not implemented in src/index.ts.
+- Issue: Missing CLI command: `add-agent <path>` (load a new agent JSON into a running world) is not implemented in src/index.ts.
+- Issue: Run command accepts OPENAI_API_KEY in addition to ANTHROPIC_API_KEY; spec only specifies ANTHROPIC_API_KEY support.
+- Issue: No tests exist for the missing generate-agents and add-agent commands.
+
+### backend.database - PASS
+
+- Path: .specs/backend/database.md
+- Summary: Implementation and tests satisfy the spec. All tables created with IF NOT EXISTS, WAL mode enabled, foreign keys enforced, simulation singleton constrained, event_log is append-only, all queries use parameterized values, and acceptance criteria are covered by passing tests.
+- Evidence (config): Matched 2 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/db.test.ts
+- Evidence (code-audit): schema.ts:7 enables WAL mode via db.pragma('journal_mode = WAL'); schema.ts:8 enables foreign keys via db.pragma('foreign_keys = ON')
+- Evidence (code-audit): schema.ts:10-172 creates all 13 required tables (agents, locations, resources, inventory, alliances, memory_short_term, memory_long_term, relationships, event_log, world_events, council_motions, council_votes, simulation) plus journal, all using CREATE TABLE IF NOT EXISTS for idempotency
+- Evidence (code-audit): schema.ts:145 simulation table has CHECK (id = 1) constraint enforcing singleton row; lines 179-184 insert singleton only if not exists
+- Evidence (code-audit): No UPDATE or DELETE queries target event_log in queries.ts — only INSERT (appendEvent at line 226), confirming append-only invariant
+- Evidence (code-audit): All query values use parameterized ? placeholders. String interpolation in updateAgentStats (line 81) and updateSimulation (line 273/278) is only for column names from typed interfaces, not user-supplied values
+- Evidence (code-audit): queries.ts provides full CRUD for agents (create/get/update/markDead lines 25-88), locations, resources, inventory (add/remove/transfer/scatter lines 160-205), events, simulation, short-term memory (append/get/trim), long-term memory (upsert), relationships (upsert/get), and council votes
+- Evidence (code-audit): Tests cover all acceptance criteria: WAL mode (file-based test line 19-34), simulation singleton defaults (line 36-44), idempotent init (line 46-51), in-memory DB (line 53-57), agent CRUD (lines 60-93), event log insert/query/count monotonicity (lines 95-119), FK enforcement (lines 121-130)
+- Evidence (code-audit): Test command npx vitest run tests/db.test.ts passed per deterministic evidence
+- Issue: appendShortTermMemory, getShortTermMemory, and trimShortTermMemory are imported in tests but no test cases exercise them — minor gap though not required by acceptance criteria
+- Issue: updateSimulation (queries.ts:271-278) iterates Object.entries and interpolates keys into SQL; while keys are constrained by TypeScript interface, a runtime safeguard or allowlist would be more robust
+
+### backend.engine - FAIL
+
+- Path: .specs/backend/engine.md
+- Summary: Several spec invariants and behaviors are not implemented: health regen +2/tick when rested and hunger<50, gather weighting by tools/energy/luck, death notification to co-located agents, shelter-aware storm damage, and food-specific nutrition values.
+- Evidence (config): Matched 5 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/engine.test.ts
+- Evidence (code-audit): tick-loop.ts:25-38 applyPassiveEffects only applies hunger+8 and health damage. Missing: health regen +2/tick when hunger<50 and agent rested that tick (spec invariant).
+- Evidence (code-audit): action-resolver.ts:55-57 gather conflict splits by floor(available/totalDemand) equally. Spec requires proportional weighting by tools, energy, and luck via RNG.
+- Evidence (code-audit): death.ts:12-42 checkDeaths sets isAlive=false, causeOfDeath, scatters inventory, logs event. Missing: spec requires notifying agents at the same location of the death.
+- Evidence (code-audit): event-system.ts:27-31 tropical_storm damages ALL living agents unconditionally. Spec says 'damage shelters, injure unsheltered agents' — no shelter check performed.
+- Evidence (code-audit): action-resolver.ts:139 eat action uses hardcoded nutrition=25 instead of the food item's nutrition value as spec requires.
+- Evidence (code-audit): tick-loop.ts:40-167 executeTick is missing 'trigger memory compression if needed' step from the 13-step pipeline.
+- Evidence (code-audit): tests/engine.test.ts:27-57 acceptance test for gather+rest does not verify both agents have +8 hunger (tests action resolver in isolation without passive effects).
+- Evidence (code-audit): Acceptance criteria covered: tick increment (line 108), epoch boundary at 12 (line 119), death with inventory scatter (line 88), resource conflict (line 59), determinism (line 133). Not covered: console output verification.
+- Issue: Health regen +2/tick invariant (hunger<50 and rested) not implemented in applyPassiveEffects
+- Issue: Gather proportional split ignores tools, energy, and luck weighting — uses equal division only
+- Issue: Death system does not notify co-located agents as spec requires
+- Issue: Tropical storm event damages all agents regardless of shelter status; spec requires shelter-aware damage
+- Issue: Eat action uses hardcoded nutrition value (25) instead of per-food nutrition
+- Issue: Memory compression trigger step missing from tick pipeline
+- Issue: Acceptance test for gather+rest doesn't verify +8 hunger on both agents through full tick
+
+### backend.random-events - FAIL
+
+- Path: .specs/backend/random-events.md
+- Summary: Event probabilities, damage ranges, agent counts, trigger conditions, and shelter mechanics all diverge from the spec.
+- Evidence (config): Matched 2 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/events.test.ts
+- Evidence (code-audit): Tropical storm probability is 0.08 in code (event-system.ts:20) but spec requires 0.05 (5%).
+- Evidence (code-audit): Resource discovery probability is 0.12 in code (event-system.ts:43) but spec requires 0.08 (8%).
+- Evidence (code-audit): Illness outbreak probability is 0.05 in code (event-system.ts:65) but spec requires 0.04 (4%).
+- Evidence (code-audit): Hidden idol probability is 0.03 in code (event-system.ts:83) but spec requires 0.06 (6%).
+- Evidence (code-audit): Tropical storm damage range is 5-15 (event-system.ts:24) but spec requires 10-20 for unsheltered agents.
+- Evidence (code-audit): Tropical storm applies damage to ALL agents (event-system.ts:27-30) instead of only unsheltered agents; no shelter quality reduction or resource scattering is implemented.
+- Evidence (code-audit): Illness outbreak affects only 1 agent (event-system.ts:69) with 5-15 damage; spec requires 1-3 agents with 10-25 damage.
+- Evidence (code-audit): Spec requires trigger conditions (storms only when shelters exist, illness only when agents > 3) but code has no such guards.
+- Evidence (code-audit): No perception integration: spec requires affected agents receive event descriptions in their perception (except hidden idol), but no such mechanism exists in the code.
+- Evidence (code-audit): Hidden idol placement does not create an actual discoverable idol record; no integration with an 'explore' action exists.
+- Evidence (code-audit): Tests verify events fire and log but do not validate correct probabilities, damage ranges, agent counts, shelter mechanics, or trigger conditions.
+- Issue: All four event probabilities differ from spec values (storm: 0.08 vs 0.05, resource: 0.12 vs 0.08, illness: 0.05 vs 0.04, idol: 0.03 vs 0.06)
+- Issue: Tropical storm does not check shelter status, does not reduce shelter quality, does not scatter resources, and uses wrong damage range (5-15 vs 10-20)
+- Issue: Illness outbreak affects 1 agent instead of 1-3, with wrong damage range (5-15 vs 10-25)
+- Issue: Missing trigger conditions: storms should require shelters to exist, illness should require agents > 3
+- Issue: No agent perception integration for event announcements
+- Issue: Hidden idol is not actually persisted as a discoverable game object and has no explore-action integration
+- Issue: Tests do not assert spec-mandated numeric values (probabilities, damage ranges, agent counts)
+
+### backend.rng - PASS
+
+- Path: .specs/backend/rng.md
+- Summary: Implementation and tests satisfy all spec requirements: deterministic mulberry32 PRNG with random(), randomInt(), pick(), shuffle(), fork(), state serialization/restoration, and proper error handling.
+- Evidence (config): Matched 1 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/rng.test.ts
+- Evidence (code-audit): SeededRNG uses mulberry32 algorithm with no Math.random() calls — determinism invariant satisfied (src/rng.ts:31-36)
+- Evidence (code-audit): random() returns float in [0, 1) via unsigned-right-shift divided by 2^32 (src/rng.ts:35)
+- Evidence (code-audit): randomInt(min, max) returns inclusive range [min, max] using Math.floor(random() * (max - min + 1)) (src/rng.ts:38-40)
+- Evidence (code-audit): pick() selects random element from array, throws on empty array (src/rng.ts:42-47)
+- Evidence (code-audit): shuffle() uses Fisher-Yates on a copy, returns deterministic permutation (src/rng.ts:49-56)
+- Evidence (code-audit): fork() creates child PRNG from current random output — spec use case covered (src/rng.ts:58-61)
+- Evidence (code-audit): getState() returns plain string (number.toString()), fromState() parses and restores — storable in SQLite TEXT (src/rng.ts:14-29)
+- Evidence (code-audit): Invalid seed (NaN/undefined/null) throws descriptive error (src/rng.ts:8-10)
+- Evidence (code-audit): Corrupted state string throws rather than silently producing bad output (src/rng.ts:19-21)
+- Evidence (code-audit): Tests cover all 6 acceptance criteria: same-seed determinism, randomInt range, pick membership, shuffle determinism, state round-trip, different-seed divergence (tests/rng.test.ts)
+- Evidence (code-audit): Tests pass per deterministic evidence: npx vitest run tests/rng.test.ts
+
+### backend.social-layer - FAIL
+
+- Path: .specs/backend/social-layer.md
+- Summary: Trading is stub-only (no atomic execution), alliance formation skips required acceptance step, and several sentiment deltas diverge from spec.
+- Evidence (config): Matched 6 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/social.test.ts
+- Evidence (code-audit): src/engine/action-resolver.ts:310-327 - trade case only logs a speech event ('I'd like to trade...') with no inventory validation, no atomic swap, and no failure notification. Spec requires atomic trade execution when both sides are valid.
+- Evidence (code-audit): src/engine/social.ts:123-151 - proposeAlliance() immediately creates the alliance with both members via createAlliance(). Spec requires target acceptance in a future tick before the alliance forms.
+- Evidence (code-audit): src/engine/social.ts:153-178 - betrayAlliance() does not apply the -20 sentiment delta specified in the spec's relationship tracking section.
+- Evidence (code-audit): src/engine/action-resolver.ts:237-245 - speak action applies +2 (whisper) and +1 (public) sentiment, but spec defines spoke_positively as +3 and spoke_negatively as -5. No negative speech sentiment is implemented.
+- Evidence (code-audit): No implementation found for sentiment deltas: helped (+10), traded (+5), voted_against (-10). Only gave_gift (+8) matches the spec exactly.
+- Evidence (code-audit): tests/social.test.ts has no test coverage for trading (proposal, acceptance, atomic execution, or failure when item missing).
+- Evidence (code-audit): src/db/queries.ts:351-357 - adjustRelationship correctly clamps sentiment to [-100, 100], matching the spec invariant.
+- Evidence (code-audit): src/engine/social.ts:8,25 - MAX_MESSAGE_LENGTH = 200 and message.slice(0, 200) correctly enforces the 200-char cap.
+- Evidence (code-audit): tests/social.test.ts:96-112 - betrayal test verifies agent is removed from members and no notification is sent to remaining members, matching spec.
+- Issue: Trading is not implemented: action-resolver only logs a speech event, no atomic item swap or validation exists
+- Issue: Alliance formation bypasses required acceptance step — proposeAlliance() immediately adds both agents as members
+- Issue: Betrayal does not apply -20 sentiment delta as specified
+- Issue: Speech sentiment deltas (+1/+2) do not match spec values (spoke_positively +3, spoke_negatively -5)
+- Issue: Missing sentiment delta implementations for: helped (+10), traded (+5), voted_against (-10)
+- Issue: No test coverage for any trading scenarios
+
+### backend.tribal-council - PASS
+
+- Path: .specs/backend/tribal-council.md
+- Summary: Core tribal council flow (motions, seconding, debate, voting, tally, banishment, no-confidence, elections) is implemented and tested. All acceptance criteria have corresponding passing tests. Minor gaps exist in failure-mode handling and council-specific perception.
+- Evidence (config): Matched 6 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/tribal-council.test.ts
+- Evidence (code-audit): shouldTriggerCouncil(12,12) returns true — matches spec acceptance criterion for tick 12 trigger (tribal-council.ts:31-33)
+- Evidence (code-audit): Motion lifecycle: propose→second→debate→vote→tally implemented in runCouncilPhase with correct phase transitions (council_motions→council_debate→council_vote→tick) (tribal-council.ts:200-315)
+- Evidence (code-audit): All 7 motion types defined: general, banishment, resource_allocation, exploration_mandate, no_confidence, election, custom (tribal-council.ts:12)
+- Evidence (code-audit): Cannot second own motion enforced (tribal-council.ts:67), tested (test line 73-78)
+- Evidence (code-audit): Unseconded motions marked 'died' (tribal-council.ts:236-238), tested (test line 61-71)
+- Evidence (code-audit): No-confidence: deposed chieftain's is_chieftain set to false, election auto-raised (tribal-council.ts:138-144, 258-266), tested (test line 82-96)
+- Evidence (code-audit): Banishment: sets is_banished=1, scatters inventory at location (tribal-council.ts:127-136, queries.ts:63-67, 189-205), tested (test line 119-142)
+- Evidence (code-audit): Vote secrecy: council_votes stores voter identity, but tallyAndResolve returns only totals (ayes/nays/abstentions). Perception payload has no mechanism to expose individual votes. Tested (test line 145-164)
+- Evidence (code-audit): Tie vote: chieftain breaks tie via aye=pass, abstain=fail (tribal-council.ts:104-117), both paths tested (test lines 167-192)
+- Evidence (code-audit): Election uses plurality voting with seeded RNG tiebreak (tribal-council.ts:159-197), tested (test line 98-116)
+- Evidence (code-audit): Vote replacement: recordCouncilVote deletes existing vote before inserting (queries.ts:447-448), matches spec 'new vote replaces the old one'
+- Evidence (code-audit): Council with no seconded motions adjourns with no votes taken (tribal-council.ts:300-303), tested (test line 194-199)
+- Evidence (code-audit): All council events logged to event_log (call_to_order, motion_resolved, banishment, no_confidence_passed, election_result, council_adjourned), tested (test line 201-215)
+- Evidence (code-audit): Schema has council_motions and council_votes tables with correct columns including target_agent_id, status, tally fields (schema.ts:117-142)
+- Evidence (code-audit): Prompt builder includes tribal council rules explaining secret votes, chieftain role, motion types, and banishment permanence (prompt-builder.ts:39-47)
+- Evidence (code-audit): Council tools defined: council_speak, council_propose_motion, council_second_motion, council_vote (tools.ts:209-259)
+- Issue: Failure mode not implemented: chieftain death between epochs should promote highest-reputation agent (or random if tied) to acting chieftain — no succession logic found in codebase
+- Issue: Failure mode partially missing: banishment of dead agent should be 'ruled out of order' (auto-failed before vote), but code only skips the banishment effect post-tally if target is dead (tribal-council.ts:129) — motion still proceeds to vote and passes
+- Issue: No council-specific perception builder: spec says agents see pending motions, debate history, and chieftain announcement during council, but perception.ts only builds tick-phase perception with no council context
+- Issue: resolveElection sets winner is_chieftain=true but does not clear other agents' is_chieftain flags first — invariant 'exactly one chieftain' could break if election runs without prior no-confidence (edge case)
+
+### backend.world-island - PASS
+
+- Path: .specs/backend/world-island.md
+- Summary: Implementation and tests satisfy the spec's acceptance criteria. The 8-location island graph is correct with bidirectional connections, crafting works atomically at the application level, weather is deterministic, and all tests pass. Minor invariant enforcement gaps noted.
+- Evidence (config): Matched 3 code path entries.
+- Evidence (test): Matched 1 test path entries.
+- Evidence (test): Passed: npx vitest run tests/world.test.ts
+- Evidence (code-audit): DEFAULT_ISLAND in island.ts has exactly 8 locations matching spec names: The Beach, Dense Jungle, Waterfall, Rocky Ridge, The Clearing, Tidal Pools, Mangrove Swamp, The Summit.
+- Evidence (code-audit): validateIslandGraph() checks both bidirectional connections and full graph connectivity via BFS. Test confirms both properties hold for DEFAULT_ISLAND.
+- Evidence (code-audit): isAdjacent() and getLocationDef() throw on invalid location IDs, matching the 'throw on invalid location ID' failure mode. Tested at world.test.ts:34-36.
+- Evidence (code-audit): fishing_spear recipe requires {wood:2, stone:1} matching spec. Test at world.test.ts:73-90 confirms successful craft consumes inputs and produces output.
+- Evidence (code-audit): Crafting with insufficient materials returns {success:false} with reason, not an error. Test at world.test.ts:92-103 verifies inventory is unchanged on failure.
+- Evidence (code-audit): generateWeather() uses SeededRNG producing deterministic output. Test at world.test.ts:112-122 confirms same seed yields identical weather.
+- Evidence (code-audit): getWeatherEffects() returns gatherModifier and shelterDamage for storms, satisfying 'affects gather rates' and 'storm damages shelters' use cases.
+- Evidence (code-audit): Resource regeneration test at world.test.ts:47-61 verifies depleted resource gains regenRate capped at maxQuantity.
+- Evidence (code-audit): seedIslandToDatabase() persists all locations and resources to the database via createLocation/createResource calls.
+- Issue: No dedicated regenerateResources() function in mapped code paths; regeneration logic is simulated manually in the test rather than being an exported tick-level function.
+- Issue: craft() in crafting.ts does not wrap input consumption and output production in an explicit DB transaction, which could violate the 'crafting must be atomic' invariant if a failure occurs between steps.
+- Issue: No runtime guard ensuring resource quantities never go below 0; the invariant depends on callers passing correct values to updateResourceQuantity.
+
+### frontend.dashboard - FAIL
+
+- Path: .specs/frontend/dashboard.md
+- Summary: Deterministic checks failed.
+- Evidence (config): Matched 19 code path entries.
+- Evidence (test): Passed: cd dashboard && npx vitest run
+- Issue: Missing declared test paths: dashboard/src/**/*.test.{ts,tsx}

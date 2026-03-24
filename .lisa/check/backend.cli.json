@@ -1,0 +1,62 @@
+{
+  "specId": "backend.cli",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/cli.md",
+  "status": "FAIL",
+  "summary": "Two CLI commands specified in the spec (`generate-agents` and `add-agent`) are not implemented. Other commands, configuration, utilities, and tests conform well.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 5 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/cli.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/index.ts implements init, run, pause, status, inspect commands but is missing `generate-agents --count <n> --seed <n>` and `add-agent <path>` commands required by the spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/config.ts DEFAULT_CONFIG matches spec defaults: ticksPerEpoch=12, actionsPerTick=2, tickDelayMs=1000, discussionRounds=3, dbPath='data/latent-acres.db'."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/utils/cost-tracker.ts: MAX_COST_PER_TICK=0.50, COST_WARNING_THRESHOLD=50.00, estimateCost and trackCost persist to DB — all match spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/utils/rate-limiter.ts: BATCH_SIZE=4, INTER_BATCH_DELAY_MS=500, batched Promise.all enforces concurrency limit — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/utils/logger.ts: structured output with timestamps and categories; logTickSummary provides per-tick summary — matches spec."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/index.ts:33-42 init refuses to overwrite existing DB unless --force is passed — satisfies invariant."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/index.ts:135 run resumes from last completed tick via getSimulation(db).current_tick — satisfies invariant."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/index.ts:86 run command also accepts OPENAI_API_KEY as alternative to ANTHROPIC_API_KEY; spec only mentions ANTHROPIC_API_KEY."
+    },
+    {
+      "type": "code-audit",
+      "detail": "tests/cli.test.ts covers config defaults, status output, inspect agent stats/inventory, dry-run tick execution, cost accumulation, rate limiter concurrency — all acceptance criteria tested."
+    }
+  ],
+  "issues": [
+    "Missing CLI command: `generate-agents --count <n> --seed <n>` (use Claude to auto-generate agent JSON files) is not implemented in src/index.ts.",
+    "Missing CLI command: `add-agent <path>` (load a new agent JSON into a running world) is not implemented in src/index.ts.",
+    "Run command accepts OPENAI_API_KEY in addition to ANTHROPIC_API_KEY; spec only specifies ANTHROPIC_API_KEY support.",
+    "No tests exist for the missing generate-agents and add-agent commands."
+  ]
+}

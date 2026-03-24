@@ -1,0 +1,45 @@
+{
+  "workspacePath": "/Users/matt/code/latent_acres",
+  "generatedAt": "2026-03-24T00:37:58.646Z",
+  "selectedPaths": [
+    "src/agents",
+    "src/engine",
+    "src/db",
+    "src/api",
+    "src/world",
+    "src/rng.ts",
+    "src/config.ts",
+    "src/index.ts",
+    "src/utils",
+    "dashboard/src"
+  ],
+  "profile": "importer",
+  "harness": "claude-code",
+  "files": [
+    ".specs/backend/cost-tracking.md"
+  ],
+  "notes": [
+    "All 11 existing active specs cover the major subsystems in the import scope (agents, engine, db, api, world, rng, cli, dashboard, social, tribal-council, random-events).",
+    "src/utils/cost-tracker.ts is the only module in the import scope not covered by an existing spec; it has explicit pricing constants and budget thresholds.",
+    "No benchmark scripts, performance tests, or documented latency/throughput budgets were found — no benchmark sidecars drafted.",
+    "Vitest is configured in package.json but zero test files exist in the repository.",
+    "src/config.ts (22 lines, 3 exports) is implicitly covered by backend.engine and backend.cli specs."
+  ],
+  "uncertainties": [
+    {
+      "path": ".specs/backend/cost-tracking.md",
+      "specId": "backend.cost-tracking",
+      "level": "medium",
+      "detail": "The cost tracker returns a withinBudget flag but source does not show the engine acting on a false value — unclear if per-tick overspend actually halts or throttles processing.",
+      "question": "Does the engine currently enforce the per-tick budget cap, or is the flag informational only?"
+    },
+    {
+      "path": ".specs/backend/cost-tracking.md",
+      "specId": "backend.cost-tracking",
+      "level": "low",
+      "detail": "Pricing constants are hard-coded; it is unclear if this is intentional or a placeholder for future configuration.",
+      "question": "Should model pricing be configurable via environment variables or config file?"
+    }
+  ],
+  "dryRun": false
+}

@@ -1,0 +1,26 @@
+{
+  "name": "latent-acres",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx src/index.ts",
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "better-sqlite3": "^11.7.0",
+    "commander": "^13.1.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.12.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "specId": "backend.social-layer",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/social-layer.md",
+  "status": "FAIL",
+  "summary": "Trading is stub-only (no atomic execution), alliance formation skips required acceptance step, and several sentiment deltas diverge from spec.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 6 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/social.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/engine/action-resolver.ts:310-327 - trade case only logs a speech event ('I'd like to trade...') with no inventory validation, no atomic swap, and no failure notification. Spec requires atomic trade execution when both sides are valid."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/engine/social.ts:123-151 - proposeAlliance() immediately creates the alliance with both members via createAlliance(). Spec requires target acceptance in a future tick before the alliance forms."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/engine/social.ts:153-178 - betrayAlliance() does not apply the -20 sentiment delta specified in the spec's relationship tracking section."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/engine/action-resolver.ts:237-245 - speak action applies +2 (whisper) and +1 (public) sentiment, but spec defines spoke_positively as +3 and spoke_negatively as -5. No negative speech sentiment is implemented."
+    },
+    {
+      "type": "code-audit",
+      "detail": "No implementation found for sentiment deltas: helped (+10), traded (+5), voted_against (-10). Only gave_gift (+8) matches the spec exactly."
+    },
+    {
+      "type": "code-audit",
+      "detail": "tests/social.test.ts has no test coverage for trading (proposal, acceptance, atomic execution, or failure when item missing)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/db/queries.ts:351-357 - adjustRelationship correctly clamps sentiment to [-100, 100], matching the spec invariant."
+    },
+    {
+      "type": "code-audit",
+      "detail": "src/engine/social.ts:8,25 - MAX_MESSAGE_LENGTH = 200 and message.slice(0, 200) correctly enforces the 200-char cap."
+    },
+    {
+      "type": "code-audit",
+      "detail": "tests/social.test.ts:96-112 - betrayal test verifies agent is removed from members and no notification is sent to remaining members, matching spec."
+    }
+  ],
+  "issues": [
+    "Trading is not implemented: action-resolver only logs a speech event, no atomic item swap or validation exists",
+    "Alliance formation bypasses required acceptance step — proposeAlliance() immediately adds both agents as members",
+    "Betrayal does not apply -20 sentiment delta as specified",
+    "Speech sentiment deltas (+1/+2) do not match spec values (spoke_positively +3, spoke_negatively -5)",
+    "Missing sentiment delta implementations for: helped (+10), traded (+5), voted_against (-10)",
+    "No test coverage for any trading scenarios"
+  ]
+}

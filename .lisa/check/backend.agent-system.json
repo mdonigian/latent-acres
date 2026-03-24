@@ -1,0 +1,61 @@
+{
+  "specId": "backend.agent-system",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/agent-system.md",
+  "status": "PASS",
+  "summary": "All 7 acceptance criteria are covered by passing tests. Core spec requirements (personality loading/validation, Phase 1 tool definitions, qualitative perception, short-term memory buffer K=50, prompt assembly, orchestrator with dry-run and energy validation, BATCH_SIZE=4) are implemented correctly. One spec use-case (long-term memory compression via Claude API every M=6 ticks) is not implemented in the mapped code files.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 7 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/agents.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "personality.ts: validates PersonalityProfile with traits, backstory, communicationStyle, values, optional hiddenAgenda, startingLocation, model — matches spec schema exactly"
+    },
+    {
+      "type": "code-audit",
+      "detail": "tools.ts: PHASE1_TOOLS defines all 8 Phase 1 tools (gather, craft, eat, rest, move, explore, internal_monologue, check_relationships) with typed parameter schemas and correct energy costs (gather=15, craft=10, move=10, explore=20)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "perception.ts: getResourceAvailability returns 'scarce'/'moderate'/'abundant' based on ratio thresholds (0.3, 0.7) — agents never see exact quantities. getAgentAppearance returns visible cues ('looks exhausted', 'looks well-fed', etc.) — agents never see exact stats"
+    },
+    {
+      "type": "code-audit",
+      "detail": "perception.ts: PerceptionPayload includes self stats as exact numbers, otherAgents with visible cues, qualitative resources, recentMessages (public + whispers), publicKnowledge (eliminatedAgents, currentEpoch, ticksUntilCouncil)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "memory.ts: SHORT_TERM_LIMIT=50, appendMemory calls trimShortTermMemory after each append. MemoryEntry includes tick, epoch, type, content, involvedAgents, importance — matches spec"
+    },
+    {
+      "type": "code-audit",
+      "detail": "prompt-builder.ts: assemblePrompt produces systemPrompt (personality injection + RULES + STRATEGY GUIDANCE), perceptionJson, memoryEntries, tickContext (currentTick, currentEpoch, ticksUntilTribalCouncil, actionsRemaining) — matches spec template"
+    },
+    {
+      "type": "code-audit",
+      "detail": "orchestrator.ts: BATCH_SIZE=4, processes agents in batches with Promise.all, dry-run mode uses heuristicActions without API calls, validates energy via validateAndFilterActions, catches API errors and logs+skips agent turn, caps real actions at actionsPerTick"
+    },
+    {
+      "type": "code-audit",
+      "detail": "orchestrator.ts: text-only responses (no tool calls) cause loop to break — effectively ignored per spec, though no explicit debug logging of the text content"
+    },
+    {
+      "type": "code-audit",
+      "detail": "tests/agents.test.ts: all 7 acceptance criteria have corresponding test cases that pass — vex.json loading, Phase 1 tools, perception with 2 agents at Beach, 60-append memory trimming to 50, prompt builder output, dry-run orchestration, energy validation (5 energy < 15 gather cost)"
+    }
+  ],
+  "issues": [
+    "Long-term memory compression (spec: 'every M=6 ticks, call Claude to summarize short-term buffer into compressed first-person summary, max 800 words') is not implemented in memory.ts or any other mapped code file — journal entries are read but never written/generated via Claude API in these files",
+    "Orchestrator does not explicitly log text content when agent returns text without tool calls (spec: 'log for debugging') — it silently breaks the loop",
+    "model-adapter.ts contains a full OpenAI adapter implementation beyond what spec describes as a 'model-adapter stub' in out-of-scope section — not a violation but exceeds spec scope"
+  ]
+}

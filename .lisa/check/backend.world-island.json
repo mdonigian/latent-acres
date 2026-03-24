@@ -1,0 +1,61 @@
+{
+  "specId": "backend.world-island",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/world-island.md",
+  "status": "PASS",
+  "summary": "Implementation and tests satisfy the spec's acceptance criteria. The 8-location island graph is correct with bidirectional connections, crafting works atomically at the application level, weather is deterministic, and all tests pass. Minor invariant enforcement gaps noted.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 3 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/world.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "DEFAULT_ISLAND in island.ts has exactly 8 locations matching spec names: The Beach, Dense Jungle, Waterfall, Rocky Ridge, The Clearing, Tidal Pools, Mangrove Swamp, The Summit."
+    },
+    {
+      "type": "code-audit",
+      "detail": "validateIslandGraph() checks both bidirectional connections and full graph connectivity via BFS. Test confirms both properties hold for DEFAULT_ISLAND."
+    },
+    {
+      "type": "code-audit",
+      "detail": "isAdjacent() and getLocationDef() throw on invalid location IDs, matching the 'throw on invalid location ID' failure mode. Tested at world.test.ts:34-36."
+    },
+    {
+      "type": "code-audit",
+      "detail": "fishing_spear recipe requires {wood:2, stone:1} matching spec. Test at world.test.ts:73-90 confirms successful craft consumes inputs and produces output."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Crafting with insufficient materials returns {success:false} with reason, not an error. Test at world.test.ts:92-103 verifies inventory is unchanged on failure."
+    },
+    {
+      "type": "code-audit",
+      "detail": "generateWeather() uses SeededRNG producing deterministic output. Test at world.test.ts:112-122 confirms same seed yields identical weather."
+    },
+    {
+      "type": "code-audit",
+      "detail": "getWeatherEffects() returns gatherModifier and shelterDamage for storms, satisfying 'affects gather rates' and 'storm damages shelters' use cases."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Resource regeneration test at world.test.ts:47-61 verifies depleted resource gains regenRate capped at maxQuantity."
+    },
+    {
+      "type": "code-audit",
+      "detail": "seedIslandToDatabase() persists all locations and resources to the database via createLocation/createResource calls."
+    }
+  ],
+  "issues": [
+    "No dedicated regenerateResources() function in mapped code paths; regeneration logic is simulated manually in the test rather than being an exported tick-level function.",
+    "craft() in crafting.ts does not wrap input consumption and output production in an explicit DB transaction, which could violate the 'crafting must be atomic' invariant if a failure occurs between steps.",
+    "No runtime guard ensuring resource quantities never go below 0; the invariant depends on callers passing correct values to updateResourceQuantity."
+  ]
+}

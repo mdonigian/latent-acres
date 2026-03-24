@@ -1,0 +1,90 @@
+{
+  "specId": "backend.tribal-council",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/tribal-council.md",
+  "status": "PASS",
+  "summary": "Core tribal council flow (motions, seconding, debate, voting, tally, banishment, no-confidence, elections) is implemented and tested. All acceptance criteria have corresponding passing tests. Minor gaps exist in failure-mode handling and council-specific perception.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 6 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/tribal-council.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "shouldTriggerCouncil(12,12) returns true — matches spec acceptance criterion for tick 12 trigger (tribal-council.ts:31-33)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Motion lifecycle: propose→second→debate→vote→tally implemented in runCouncilPhase with correct phase transitions (council_motions→council_debate→council_vote→tick) (tribal-council.ts:200-315)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "All 7 motion types defined: general, banishment, resource_allocation, exploration_mandate, no_confidence, election, custom (tribal-council.ts:12)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Cannot second own motion enforced (tribal-council.ts:67), tested (test line 73-78)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Unseconded motions marked 'died' (tribal-council.ts:236-238), tested (test line 61-71)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "No-confidence: deposed chieftain's is_chieftain set to false, election auto-raised (tribal-council.ts:138-144, 258-266), tested (test line 82-96)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Banishment: sets is_banished=1, scatters inventory at location (tribal-council.ts:127-136, queries.ts:63-67, 189-205), tested (test line 119-142)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Vote secrecy: council_votes stores voter identity, but tallyAndResolve returns only totals (ayes/nays/abstentions). Perception payload has no mechanism to expose individual votes. Tested (test line 145-164)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tie vote: chieftain breaks tie via aye=pass, abstain=fail (tribal-council.ts:104-117), both paths tested (test lines 167-192)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Election uses plurality voting with seeded RNG tiebreak (tribal-council.ts:159-197), tested (test line 98-116)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Vote replacement: recordCouncilVote deletes existing vote before inserting (queries.ts:447-448), matches spec 'new vote replaces the old one'"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Council with no seconded motions adjourns with no votes taken (tribal-council.ts:300-303), tested (test line 194-199)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "All council events logged to event_log (call_to_order, motion_resolved, banishment, no_confidence_passed, election_result, council_adjourned), tested (test line 201-215)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Schema has council_motions and council_votes tables with correct columns including target_agent_id, status, tally fields (schema.ts:117-142)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Prompt builder includes tribal council rules explaining secret votes, chieftain role, motion types, and banishment permanence (prompt-builder.ts:39-47)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Council tools defined: council_speak, council_propose_motion, council_second_motion, council_vote (tools.ts:209-259)"
+    }
+  ],
+  "issues": [
+    "Failure mode not implemented: chieftain death between epochs should promote highest-reputation agent (or random if tied) to acting chieftain — no succession logic found in codebase",
+    "Failure mode partially missing: banishment of dead agent should be 'ruled out of order' (auto-failed before vote), but code only skips the banishment effect post-tally if target is dead (tribal-council.ts:129) — motion still proceeds to vote and passes",
+    "No council-specific perception builder: spec says agents see pending motions, debate history, and chieftain announcement during council, but perception.ts only builds tick-phase perception with no council context",
+    "resolveElection sets winner is_chieftain=true but does not clear other agents' is_chieftain flags first — invariant 'exactly one chieftain' could break if election runs without prior no-confidence (edge case)"
+  ]
+}

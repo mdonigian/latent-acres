@@ -1,0 +1,56 @@
+{
+  "specId": "backend.database",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/database.md",
+  "status": "PASS",
+  "summary": "Implementation and tests satisfy the spec. All tables created with IF NOT EXISTS, WAL mode enabled, foreign keys enforced, simulation singleton constrained, event_log is append-only, all queries use parameterized values, and acceptance criteria are covered by passing tests.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 2 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/db.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "schema.ts:7 enables WAL mode via db.pragma('journal_mode = WAL'); schema.ts:8 enables foreign keys via db.pragma('foreign_keys = ON')"
+    },
+    {
+      "type": "code-audit",
+      "detail": "schema.ts:10-172 creates all 13 required tables (agents, locations, resources, inventory, alliances, memory_short_term, memory_long_term, relationships, event_log, world_events, council_motions, council_votes, simulation) plus journal, all using CREATE TABLE IF NOT EXISTS for idempotency"
+    },
+    {
+      "type": "code-audit",
+      "detail": "schema.ts:145 simulation table has CHECK (id = 1) constraint enforcing singleton row; lines 179-184 insert singleton only if not exists"
+    },
+    {
+      "type": "code-audit",
+      "detail": "No UPDATE or DELETE queries target event_log in queries.ts — only INSERT (appendEvent at line 226), confirming append-only invariant"
+    },
+    {
+      "type": "code-audit",
+      "detail": "All query values use parameterized ? placeholders. String interpolation in updateAgentStats (line 81) and updateSimulation (line 273/278) is only for column names from typed interfaces, not user-supplied values"
+    },
+    {
+      "type": "code-audit",
+      "detail": "queries.ts provides full CRUD for agents (create/get/update/markDead lines 25-88), locations, resources, inventory (add/remove/transfer/scatter lines 160-205), events, simulation, short-term memory (append/get/trim), long-term memory (upsert), relationships (upsert/get), and council votes"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tests cover all acceptance criteria: WAL mode (file-based test line 19-34), simulation singleton defaults (line 36-44), idempotent init (line 46-51), in-memory DB (line 53-57), agent CRUD (lines 60-93), event log insert/query/count monotonicity (lines 95-119), FK enforcement (lines 121-130)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Test command npx vitest run tests/db.test.ts passed per deterministic evidence"
+    }
+  ],
+  "issues": [
+    "appendShortTermMemory, getShortTermMemory, and trimShortTermMemory are imported in tests but no test cases exercise them — minor gap though not required by acceptance criteria",
+    "updateSimulation (queries.ts:271-278) iterates Object.entries and interpolates keys into SQL; while keys are constrained by TypeScript interface, a runtime safeguard or allowlist would be more robust"
+  ]
+}

@@ -65,10 +65,17 @@ Epoch (e.g. 12 ticks)
 ├── ...
 ├── Tick 12: All agents submit actions → resolved simultaneously
 └── EPOCH BOUNDARY: Tribal Council convenes
-    ├── Discussion phase (agents speak freely, 2-3 rounds)
-    ├── Voting phase (each agent votes to eliminate one)
-    └── Resolution (eliminated agent is removed)
+    ├── Call to order by the Chieftain
+    ├── Agents may raise motions (proposals for the tribe to act on)
+    ├── Motions require a second from another agent
+    ├── Debate phase (agents speak for/against, 2-3 rounds)
+    ├── Vote on each seconded motion (majority rules, Chieftain breaks ties)
+    └── Chieftain may be challenged via motion of no confidence
 ```
+
+**Chieftain:** At simulation start, one agent is designated as the elected Chieftain. The Chieftain calls the council to order, sets the agenda, and breaks tie votes. Any agent may propose a **motion of no confidence** during council — if it passes by majority vote, the Chieftain is deposed and a new election is held immediately. The Chieftain role carries no survival advantages, only political power.
+
+**Motions:** Agents can propose anything — banishment, resource sharing rules, exploration mandates, punishments, alliances, or novel ideas the simulation hasn't seen before. The council is a general-purpose governing body, not just an elimination mechanism. Motions that pass are recorded and can be enforced (or ignored) by agents in subsequent ticks.
 
 **Configuration (tunable):**
 ```typescript
@@ -141,16 +148,20 @@ interface AgentState {
   alliances: string[];            // alliance IDs
   reputation: number;             // public reputation score, affected by actions
 
+  // Political
+  isChieftain: boolean;           // true if currently the elected Chieftain
+  chieftainSince: number | null;  // epoch when elected/appointed
+
   // Status
   isAlive: boolean;               // false = dead (starvation, exposure, etc.)
-  isEliminated: boolean;          // false = voted out at tribal council
-  causeOfDeath: "starvation" | "exposure" | "voted_out" | "illness" | null;
+  isBanished: boolean;            // false = banished by council vote
+  causeOfDeath: "starvation" | "exposure" | "banished" | "illness" | null;
   removedAtTick: number | null;
   removedAtEpoch: number | null;
 }
 ```
 
-**Death vs. Elimination:** Both remove an agent from the active world, but they're distinct narratively. An eliminated agent was voted out by the tribe. A dead agent succumbed to the island. Both are permanent — the world is harsh. Dead/eliminated agents' belongings scatter at their last location.
+**Death vs. Banishment:** Both remove an agent from the active world, but they're distinct narratively. A banished agent was exiled by a council motion. A dead agent succumbed to the island. Both are permanent — the world is harsh. Dead/banished agents' belongings scatter at their last location. Banishment requires a council motion and majority vote — it is not automatic.
 
 interface PersonalityProfile {
   traits: string[];               // e.g. ["strategic", "empathetic", "paranoid", "loyal"]
@@ -188,7 +199,8 @@ Create agents via JSON files in `agents/` directory:
     "values": ["information", "leverage", "self-preservation"],
     "hiddenAgenda": "Wants to be the last person anyone suspects, right up until the end."
   },
-  "startingLocation": "the_beach"       // optional, random if omitted
+  "startingLocation": "the_beach",      // optional, random if omitted
+  "isChieftain": true                    // optional, one agent should be designated Chieftain at start
 }
 ```
 
@@ -285,9 +297,15 @@ Your values: {values}
 RULES:
 - You must survive. If your health reaches 0, you die permanently.
 - You can die from starvation, exposure, illness, or other hazards. Death is real.
-- Every {ticksPerEpoch} ticks, a Tribal Council is held where one person is voted out.
-- Votes are cast secretly. Results show who received votes, but NOT who cast them.
+- Every {ticksPerEpoch} ticks, a Tribal Council convenes. The council is a governing
+  body that follows Robert's Rules of Order. Any agent may propose motions.
+- The Chieftain calls the council to order, manages the agenda, and breaks tie votes.
+- Motions require a second from another agent before debate and vote.
+- Votes on motions are cast secretly (aye/nay/abstain). Only totals are announced.
   Other agents may tell you how they voted — but they may be lying.
+- The council can vote on anything: resource rules, banishment, alliances, mandates.
+- A motion of no confidence can depose the Chieftain. A new election follows.
+- Banishment is permanent — if the council votes to banish you, you are removed.
 - You can only interact with the world through the tools provided.
 - You see only what is observable from your current location.
 - Other agents may lie to you. Trust is earned.
@@ -295,11 +313,12 @@ RULES:
 - New castaways may arrive at any time. The world does not end.
 
 STRATEGY GUIDANCE:
-- Balance survival needs (food, shelter, health) with social gameplay (alliances, reputation)
+- Balance survival needs (food, shelter, health) with political power (alliances, reputation, council influence)
 - Information is power — what you share and withhold matters
-- The Tribal Council vote is the most consequential moment each epoch
+- The Tribal Council is the most consequential moment each epoch — motions shape the world
+- The Chieftain role is powerful but precarious — allies matter
 - Dead agents leave their belongings behind. A death can shift the balance of power.
-- There is no "winning." There is only surviving, and the relationships you build.
+- There is no "winning." There is only surviving, governing, and the relationships you build.
 
 Respond ONLY with tool calls. Do not output any text outside of tool calls.
 If you want to think/plan, use the `internal_monologue` tool.
@@ -477,22 +496,48 @@ const AGENT_TOOLS: ToolDefinition[] = [
   },
 
   // === TRIBAL COUNCIL (only available during council phase) ===
+  // Follows Robert's Rules of Order: motions, seconds, debate, vote.
 
   {
     name: "council_speak",
-    description: "Address the tribal council. All agents hear this.",
+    description: "Address the tribal council during debate. All agents hear this.",
     parameters: {
       message: { type: "string", description: "Your statement (max 300 chars)" }
     }
   },
 
   {
-    name: "council_vote",
-    description: "Cast your vote to eliminate an agent. Secret until revealed.",
+    name: "council_propose_motion",
+    description: "Propose a motion for the council to vote on. Requires a second from another agent before it can be debated and voted on. The Chieftain may also call motions.",
     parameters: {
-      target: {
+      motion: {
         type: "string",
-        description: "Name of agent to vote out"
+        description: "The motion text — what you want the tribe to do (max 300 chars)"
+      },
+      motion_type: {
+        type: "string",
+        enum: ["general", "banishment", "resource_allocation", "exploration_mandate", "no_confidence", "election", "custom"],
+        description: "The category of motion"
+      }
+    }
+  },
+
+  {
+    name: "council_second_motion",
+    description: "Second a pending motion so it can proceed to debate and vote.",
+    parameters: {
+      motion_id: { type: "string", description: "ID of the motion to second" }
+    }
+  },
+
+  {
+    name: "council_vote",
+    description: "Cast your vote on the current motion. Votes are secret until tallied.",
+    parameters: {
+      vote: {
+        type: "string",
+        enum: ["aye", "nay", "abstain"],
+        description: "Your vote on the motion"
       }
     }
   },
@@ -644,33 +689,49 @@ function resolveGatherConflict(agents: AgentState[], resource: ResourceNode): Ma
 
 ### 5.3 Tribal Council Phase
 
-Tribal Council is a special multi-round phase, not a single tick:
+Tribal Council is a special multi-round phase following **Robert's Rules of Order**. It is a general-purpose governing body, not an elimination mechanism. The council can debate and vote on any motion the agents propose.
+
+**Chieftain Role:** One agent is the Chieftain — they call the council to order, manage the agenda, and break tie votes. The Chieftain is elected at simulation start and can be deposed via a motion of no confidence.
 
 ```
 Council Phase:
-  Round 1 (Discussion):
+  Call to Order:
+    - Chieftain opens the council
     - All agents receive: who's present, recent events summary, their memory
-    - Each agent uses `council_speak` to make a statement
-    - All statements are broadcast to all agents
+    - Chieftain may set agenda or open the floor
 
-  Round 2 (Discussion):
-    - Agents see Round 1 statements
-    - Another round of `council_speak`
+  Motion Phase (repeats until no more motions):
+    - Any agent may use `council_propose_motion` to raise a motion
+    - Motion types: general, banishment, resource_allocation,
+      exploration_mandate, no_confidence, election, custom
+    - A motion requires a `council_second_motion` from a different agent
+    - Unseconded motions die
+
+  Debate Phase (2-3 rounds per seconded motion):
+    - Agents use `council_speak` to argue for/against the motion
     - Agents can also `speak` privately (whisper) during this phase
-
-  Round 3 (Final Plea):
-    - Last statements before the vote
+    - The Chieftain may call for order
 
   Vote:
-    - Each agent uses `council_vote` to cast one vote
-    - Votes are tallied
-    - Agent with most votes is eliminated (ties broken by seeded RNG)
-    - ONLY the vote totals are announced: "{Agent} received N votes"
-    - WHO voted for whom is SECRET — agents can claim anything
-    - This creates a rich deception layer: agents can whisper "I voted with you"
-      whether or not it's true. The server knows the truth; the agents don't.
-    - Eliminated agent gives a final statement
-    - Eliminated agent's inventory scatters at their last location
+    - Each agent uses `council_vote` with "aye", "nay", or "abstain"
+    - Majority of non-abstaining votes wins (Chieftain breaks ties)
+    - Votes are SECRET until tallied — only totals are announced
+    - WHO voted how is never revealed by the system
+    - Agents can claim anything about how they voted — deception is valid
+    - Passed motions are recorded in the council_motions table
+
+  Special Motions:
+    - no_confidence: If passed, the Chieftain is deposed. An immediate
+      election motion is raised. Each agent may nominate (including self).
+      A vote is held among nominees — plurality wins.
+    - banishment: If passed, the target agent is removed from the world.
+      Their inventory scatters at their last location. This is permanent.
+    - Other motions: Recorded as passed resolutions. Agents may choose
+      to honor or ignore them — enforcement is social, not mechanical.
+
+  Adjournment:
+    - Chieftain (or acting chair) adjourns the council
+    - Normal tick cycle resumes
 ```
 
 ---
@@ -779,9 +840,11 @@ CREATE TABLE agents (
   energy INTEGER DEFAULT 100,
   location_id TEXT NOT NULL,
   reputation INTEGER DEFAULT 50,
+  is_chieftain BOOLEAN DEFAULT FALSE,
+  chieftain_since_epoch INTEGER,
   is_alive BOOLEAN DEFAULT TRUE,
-  is_eliminated BOOLEAN DEFAULT FALSE,
-  cause_of_removal TEXT,          -- 'starvation' | 'exposure' | 'voted_out' | 'illness' | null
+  is_banished BOOLEAN DEFAULT FALSE,
+  cause_of_removal TEXT,          -- 'starvation' | 'exposure' | 'banished' | 'illness' | null
   removed_at_tick INTEGER,
   removed_at_epoch INTEGER,
   introduced_at_tick INTEGER DEFAULT 0,  -- when this agent entered the world
@@ -875,15 +938,33 @@ CREATE TABLE world_events (
   effects_json TEXT NOT NULL
 );
 
+-- Council motions (Robert's Rules of Order)
+CREATE TABLE council_motions (
+  id TEXT PRIMARY KEY,
+  epoch INTEGER NOT NULL,
+  proposer_agent_id TEXT NOT NULL,
+  seconder_agent_id TEXT,           -- NULL until seconded
+  motion_type TEXT NOT NULL,        -- 'general' | 'banishment' | 'resource_allocation' | 'exploration_mandate' | 'no_confidence' | 'election' | 'custom'
+  motion_text TEXT NOT NULL,
+  target_agent_id TEXT,             -- for banishment/no_confidence motions
+  status TEXT DEFAULT 'proposed',   -- 'proposed' | 'seconded' | 'debating' | 'voting' | 'passed' | 'failed' | 'died'
+  ayes INTEGER DEFAULT 0,
+  nays INTEGER DEFAULT 0,
+  abstentions INTEGER DEFAULT 0,
+  tick INTEGER NOT NULL,
+  FOREIGN KEY (proposer_agent_id) REFERENCES agents(id)
+);
+
 -- Secret vote ledger (server knows truth; agents don't)
 CREATE TABLE council_votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  motion_id TEXT NOT NULL,
   epoch INTEGER NOT NULL,
   voter_agent_id TEXT NOT NULL,
-  target_agent_id TEXT NOT NULL,
+  vote TEXT NOT NULL,               -- 'aye' | 'nay' | 'abstain'
   tick INTEGER NOT NULL,
-  FOREIGN KEY (voter_agent_id) REFERENCES agents(id),
-  FOREIGN KEY (target_agent_id) REFERENCES agents(id)
+  FOREIGN KEY (motion_id) REFERENCES council_motions(id),
+  FOREIGN KEY (voter_agent_id) REFERENCES agents(id)
 );
 
 -- Simulation state (singleton — the "save file")
@@ -891,7 +972,7 @@ CREATE TABLE simulation (
   id INTEGER PRIMARY KEY CHECK (id = 1),  -- singleton
   current_tick INTEGER DEFAULT 0,
   current_epoch INTEGER DEFAULT 0,
-  phase TEXT DEFAULT 'tick',               -- 'tick' | 'council_discussion' | 'council_vote'
+  phase TEXT DEFAULT 'tick',               -- 'tick' | 'council_motions' | 'council_debate' | 'council_vote'
   config_json TEXT NOT NULL,
   seed INTEGER NOT NULL,                   -- initial RNG seed
   rng_state TEXT NOT NULL,                 -- current RNG state for deterministic resume
@@ -1035,19 +1116,22 @@ const COST_WARNING_THRESHOLD = 50.00;   // log warning when cumulative spend hit
 - [ ] Trading system (propose, accept/reject)
 - [ ] Giving items (no reciprocity required)
 - [ ] Relationship tracker (server-side objective + agent-side subjective via memory)
-- [ ] Tribal Council phase:
-  - [ ] Multi-round discussion (`council_speak`)
-  - [ ] Whisper phase during council
-  - [ ] Secret voting (`council_vote`, stored in `council_votes` table)
-  - [ ] Vote tally announcement (totals only, not who voted for whom)
-  - [ ] Elimination + final statement
-  - [ ] Inventory scatter on elimination
+- [ ] Tribal Council phase (Robert's Rules of Order):
+  - [ ] Chieftain role: designated at start, calls council to order, breaks ties
+  - [ ] Motion system (`council_propose_motion`): general, banishment, resource_allocation, exploration_mandate, no_confidence, election, custom
+  - [ ] Seconding motions (`council_second_motion`) — unseconded motions die
+  - [ ] Debate rounds (`council_speak`, whispers allowed)
+  - [ ] Secret voting on motions (`council_vote`: aye/nay/abstain)
+  - [ ] Vote tally announcement (totals only, not who voted how)
+  - [ ] Motion resolution: passed motions recorded, banishment executed, no_confidence triggers election
+  - [ ] Chieftain election: nominations + plurality vote
+  - [ ] Banished agent removal + inventory scatter
 - [ ] Random world events (seeded: storms, illness, resource discovery, hidden idols)
 - [ ] Crafting system (recipes from spec)
 - [ ] `add-agent` CLI command (introduce new agents to running world)
 - [ ] `trigger-event` CLI command (god mode)
 - [ ] `fork` CLI command (copy world DB + new seed)
-- **Goal:** Full Survivor-style gameplay loop. Agents talk, scheme, betray, vote, and die. The world is persistent and can receive new agents at any time.
+- **Goal:** Full governance gameplay loop. Agents talk, scheme, form alliances, propose motions, debate, and vote. The Chieftain wields political power but can be overthrown. The world is persistent and can receive new agents at any time.
 
 ### Phase 3: Observability Dashboard
 - [ ] REST API exposing world state, event log, agent details
@@ -1088,6 +1172,7 @@ const COST_WARNING_THRESHOLD = 50.00;   // log warning when cumulative spend hit
 | **Determinism** | Seeded PRNG for all random events | Reproducible runs; can fork timelines by copying DB + changing seed |
 | **Agent creation** | Manual JSON configs (primary) + auto-generate option | `agents/` directory with hand-crafted characters; `generate-agents` CLI for convenience |
 | **Death** | Agents can die from starvation, exposure, illness | Health=0 is permanent death; inventory scatters; creates real survival pressure |
+| **Tribal Council** | Robert's Rules of Order governing body, not Survivor elimination | Agents propose motions, debate, vote (aye/nay/abstain). Chieftain role with overthrow via no-confidence. Banishment requires a motion. |
 | **Vote secrecy** | Vote totals announced; individual votes are secret | Agents can lie about how they voted; the server tracks truth in `council_votes` table |
 | **Endgame** | Open-ended persistent world | No win condition; world runs until admin stops it; new agents can be introduced anytime |
 | **Spectator mode** | Deferred (phase 3+) | Future: paid interactions à la Hunger Games sponsors (messages, items, events) |

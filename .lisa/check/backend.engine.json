@@ -1,0 +1,61 @@
+{
+  "specId": "backend.engine",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/engine.md",
+  "status": "FAIL",
+  "summary": "Several spec invariants and behaviors are not implemented: health regen +2/tick when rested and hunger<50, gather weighting by tools/energy/luck, death notification to co-located agents, shelter-aware storm damage, and food-specific nutrition values.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 5 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/engine.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "tick-loop.ts:25-38 applyPassiveEffects only applies hunger+8 and health damage. Missing: health regen +2/tick when hunger<50 and agent rested that tick (spec invariant)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "action-resolver.ts:55-57 gather conflict splits by floor(available/totalDemand) equally. Spec requires proportional weighting by tools, energy, and luck via RNG."
+    },
+    {
+      "type": "code-audit",
+      "detail": "death.ts:12-42 checkDeaths sets isAlive=false, causeOfDeath, scatters inventory, logs event. Missing: spec requires notifying agents at the same location of the death."
+    },
+    {
+      "type": "code-audit",
+      "detail": "event-system.ts:27-31 tropical_storm damages ALL living agents unconditionally. Spec says 'damage shelters, injure unsheltered agents' — no shelter check performed."
+    },
+    {
+      "type": "code-audit",
+      "detail": "action-resolver.ts:139 eat action uses hardcoded nutrition=25 instead of the food item's nutrition value as spec requires."
+    },
+    {
+      "type": "code-audit",
+      "detail": "tick-loop.ts:40-167 executeTick is missing 'trigger memory compression if needed' step from the 13-step pipeline."
+    },
+    {
+      "type": "code-audit",
+      "detail": "tests/engine.test.ts:27-57 acceptance test for gather+rest does not verify both agents have +8 hunger (tests action resolver in isolation without passive effects)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Acceptance criteria covered: tick increment (line 108), epoch boundary at 12 (line 119), death with inventory scatter (line 88), resource conflict (line 59), determinism (line 133). Not covered: console output verification."
+    }
+  ],
+  "issues": [
+    "Health regen +2/tick invariant (hunger<50 and rested) not implemented in applyPassiveEffects",
+    "Gather proportional split ignores tools, energy, and luck weighting — uses equal division only",
+    "Death system does not notify co-located agents as spec requires",
+    "Tropical storm event damages all agents regardless of shelter status; spec requires shelter-aware damage",
+    "Eat action uses hardcoded nutrition value (25) instead of per-food nutrition",
+    "Memory compression trigger step missing from tick pipeline",
+    "Acceptance test for gather+rest doesn't verify +8 hunger on both agents through full tick"
+  ]
+}

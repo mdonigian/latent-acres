@@ -1,0 +1,73 @@
+{
+  "specId": "backend.random-events",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/random-events.md",
+  "status": "FAIL",
+  "summary": "Event probabilities, damage ranges, agent counts, trigger conditions, and shelter mechanics all diverge from the spec.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 2 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/events.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tropical storm probability is 0.08 in code (event-system.ts:20) but spec requires 0.05 (5%)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Resource discovery probability is 0.12 in code (event-system.ts:43) but spec requires 0.08 (8%)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Illness outbreak probability is 0.05 in code (event-system.ts:65) but spec requires 0.04 (4%)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Hidden idol probability is 0.03 in code (event-system.ts:83) but spec requires 0.06 (6%)."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tropical storm damage range is 5-15 (event-system.ts:24) but spec requires 10-20 for unsheltered agents."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tropical storm applies damage to ALL agents (event-system.ts:27-30) instead of only unsheltered agents; no shelter quality reduction or resource scattering is implemented."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Illness outbreak affects only 1 agent (event-system.ts:69) with 5-15 damage; spec requires 1-3 agents with 10-25 damage."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Spec requires trigger conditions (storms only when shelters exist, illness only when agents > 3) but code has no such guards."
+    },
+    {
+      "type": "code-audit",
+      "detail": "No perception integration: spec requires affected agents receive event descriptions in their perception (except hidden idol), but no such mechanism exists in the code."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Hidden idol placement does not create an actual discoverable idol record; no integration with an 'explore' action exists."
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tests verify events fire and log but do not validate correct probabilities, damage ranges, agent counts, shelter mechanics, or trigger conditions."
+    }
+  ],
+  "issues": [
+    "All four event probabilities differ from spec values (storm: 0.08 vs 0.05, resource: 0.12 vs 0.08, illness: 0.05 vs 0.04, idol: 0.03 vs 0.06)",
+    "Tropical storm does not check shelter status, does not reduce shelter quality, does not scatter resources, and uses wrong damage range (5-15 vs 10-20)",
+    "Illness outbreak affects 1 agent instead of 1-3, with wrong damage range (5-15 vs 10-25)",
+    "Missing trigger conditions: storms should require shelters to exist, illness should require agents > 3",
+    "No agent perception integration for event announcements",
+    "Hidden idol is not actually persisted as a discoverable game object and has no explore-action integration",
+    "Tests do not assert spec-mandated numeric values (probabilities, damage ranges, agent counts)"
+  ]
+}

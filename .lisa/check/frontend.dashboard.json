@@ -1,0 +1,19 @@
+{
+  "specId": "frontend.dashboard",
+  "path": "/Users/matt/code/latent_acres/.specs/frontend/dashboard.md",
+  "status": "FAIL",
+  "summary": "Deterministic checks failed.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 19 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: cd dashboard && npx vitest run"
+    }
+  ],
+  "issues": [
+    "Missing declared test paths: dashboard/src/**/*.test.{ts,tsx}"
+  ]
+}

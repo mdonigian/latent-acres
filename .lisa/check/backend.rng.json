@@ -1,0 +1,65 @@
+{
+  "specId": "backend.rng",
+  "path": "/Users/matt/code/latent_acres/.specs/backend/rng.md",
+  "status": "PASS",
+  "summary": "Implementation and tests satisfy all spec requirements: deterministic mulberry32 PRNG with random(), randomInt(), pick(), shuffle(), fork(), state serialization/restoration, and proper error handling.",
+  "evidence": [
+    {
+      "type": "config",
+      "detail": "Matched 1 code path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Matched 1 test path entries."
+    },
+    {
+      "type": "test",
+      "detail": "Passed: npx vitest run tests/rng.test.ts"
+    },
+    {
+      "type": "code-audit",
+      "detail": "SeededRNG uses mulberry32 algorithm with no Math.random() calls — determinism invariant satisfied (src/rng.ts:31-36)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "random() returns float in [0, 1) via unsigned-right-shift divided by 2^32 (src/rng.ts:35)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "randomInt(min, max) returns inclusive range [min, max] using Math.floor(random() * (max - min + 1)) (src/rng.ts:38-40)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "pick() selects random element from array, throws on empty array (src/rng.ts:42-47)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "shuffle() uses Fisher-Yates on a copy, returns deterministic permutation (src/rng.ts:49-56)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "fork() creates child PRNG from current random output — spec use case covered (src/rng.ts:58-61)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "getState() returns plain string (number.toString()), fromState() parses and restores — storable in SQLite TEXT (src/rng.ts:14-29)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Invalid seed (NaN/undefined/null) throws descriptive error (src/rng.ts:8-10)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Corrupted state string throws rather than silently producing bad output (src/rng.ts:19-21)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tests cover all 6 acceptance criteria: same-seed determinism, randomInt range, pick membership, shuffle determinism, state round-trip, different-seed divergence (tests/rng.test.ts)"
+    },
+    {
+      "type": "code-audit",
+      "detail": "Tests pass per deterministic evidence: npx vitest run tests/rng.test.ts"
+    }
+  ],
+  "issues": []
+}
