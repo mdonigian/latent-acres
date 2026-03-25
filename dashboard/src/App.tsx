@@ -9,9 +9,12 @@ import { RelationshipGraph } from './components/RelationshipGraph.js';
 import { ThoughtViewer } from './components/ThoughtViewer.js';
 import { CostDashboard } from './components/CostDashboard.js';
 import { Conversations } from './components/Conversations.js';
+import { BreakingNewsTicker } from './components/BreakingNewsTicker.js';
+import { EpochSummary } from './components/EpochSummary.js';
+import { ZoneViewer } from './components/ZoneViewer.js';
 
-type CenterView = 'map' | 'relationships';
-type BottomView = 'events' | 'council' | 'conversations' | 'thoughts' | 'cost';
+type CenterView = 'map' | 'relationships' | 'zones';
+type BottomView = 'events' | 'council' | 'conversations' | 'thoughts' | 'summary' | 'cost';
 
 export function App() {
   const { status, agents, locations, mapData, events, relationships, connected, error } = useSimulation();
@@ -36,12 +39,13 @@ export function App() {
   const bottomHeight = bottomExpanded ? 'h-96' : 'h-56';
 
   return (
-    <div className="h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
+    <div className="h-screen text-white flex flex-col overflow-hidden" style={{ background: 'linear-gradient(180deg, #070d17 0%, #0c1525 50%, #0a1220 100%)' }}>
       <StatusBar status={status} connected={connected} />
+      <BreakingNewsTicker events={events} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left sidebar: Agent cards */}
-        <div className="w-72 border-r border-gray-700/50 overflow-y-auto bg-gray-900/80">
+        <div className="w-72 overflow-y-auto glass border-r border-white/5">
           <AgentCards
             agents={agents}
             selectedAgent={selectedAgent}
@@ -53,38 +57,51 @@ export function App() {
         {/* Center + bottom */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Center view tabs */}
-          <div className="flex gap-1 px-3 py-2 border-b border-gray-700/50 bg-gray-800/30">
-            <button
-              onClick={() => setCenterView('map')}
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${centerView === 'map' ? 'bg-emerald-600/80 text-white' : 'bg-gray-700/40 text-gray-400 hover:text-white'}`}
-            >
-              Island Map
-            </button>
-            <button
-              onClick={() => setCenterView('relationships')}
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${centerView === 'relationships' ? 'bg-emerald-600/80 text-white' : 'bg-gray-700/40 text-gray-400 hover:text-white'}`}
-            >
-              Relationships
-            </button>
+          <div className="flex gap-1.5 px-4 py-2 glass border-b border-white/5">
+            {([['map', 'Island Map'], ['relationships', 'Relationships'], ['zones', 'Zones']] as [CenterView, string][]).map(([view, label]) => (
+              <button
+                key={view}
+                onClick={() => setCenterView(view)}
+                className={`text-xs px-4 py-1.5 rounded-lg font-medium transition-all ${
+                  centerView === view
+                    ? 'bg-gradient-to-r from-emerald-600/70 to-emerald-700/70 text-white shadow-lg shadow-emerald-900/20'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Main view area */}
           <div className="flex-1 min-h-0">
-            {centerView === 'map' ? (
-              <IslandMap mapData={mapData} locations={locations} selectedAgent={selectedAgent} />
-            ) : (
+            {centerView === 'map' && (
+              <IslandMap
+                mapData={mapData}
+                locations={locations}
+                selectedAgent={selectedAgent}
+              />
+            )}
+            {centerView === 'relationships' && (
               <RelationshipGraph relationships={relationships} agents={agents} />
+            )}
+            {centerView === 'zones' && (
+              <ZoneViewer locations={locations} />
             )}
           </div>
 
           {/* Bottom panel */}
-          <div className={`${bottomHeight} border-t border-gray-700/50 flex flex-col bg-gray-800/20 transition-all`}>
-            <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-700/50 bg-gray-800/30">
-              {(['events', 'council', 'conversations', 'thoughts', 'cost'] as BottomView[]).map(view => (
+          <div className={`${bottomHeight} flex flex-col glass border-t border-white/5 transition-all duration-300 rounded-t-xl`}>
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5">
+              {(['events', 'council', 'conversations', 'thoughts', 'summary', 'cost'] as BottomView[]).map(view => (
                 <button
                   key={view}
                   onClick={() => setBottomView(view)}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition-colors capitalize ${bottomView === view ? 'bg-blue-600/80 text-white' : 'bg-gray-700/40 text-gray-400 hover:text-white'}`}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all capitalize relative ${
+                    bottomView === view
+                      ? 'bg-amber-600/20 text-amber-200 tab-active'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                  }`}
                 >
                   {view}
                 </button>
@@ -99,9 +116,10 @@ export function App() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {bottomView === 'events' && <EventTimeline events={events} />}
-              {bottomView === 'council' && <CouncilViewer epoch={status ? Math.max(0, status.epoch - 1) : 0} />}
+              {bottomView === 'council' && <CouncilViewer epoch={status ? status.epoch : 0} />}
               {bottomView === 'conversations' && <Conversations />}
               {bottomView === 'thoughts' && <ThoughtViewer agents={agents} />}
+              {bottomView === 'summary' && <EpochSummary currentEpoch={status?.epoch ?? 0} />}
               {bottomView === 'cost' && <CostDashboard status={status} />}
             </div>
           </div>

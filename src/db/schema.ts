@@ -165,10 +165,39 @@ export function initDatabase(dbPath: string, config?: { seed?: number; configJso
       FOREIGN KEY (agent_id) REFERENCES agents(id)
     );
 
+    CREATE TABLE IF NOT EXISTS epoch_recaps (
+      epoch INTEGER PRIMARY KEY,
+      recap_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS location_structures (
+      id TEXT PRIMARY KEY,
+      location_id TEXT NOT NULL,
+      structure_type TEXT NOT NULL,
+      built_by_agent_id TEXT,
+      built_at_tick INTEGER,
+      durability INTEGER DEFAULT 100,
+      properties_json TEXT,
+      FOREIGN KEY (location_id) REFERENCES locations(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS location_storage (
+      id TEXT PRIMARY KEY,
+      location_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_type TEXT NOT NULL,
+      quantity INTEGER DEFAULT 1,
+      properties_json TEXT,
+      FOREIGN KEY (location_id) REFERENCES locations(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_events_tick ON event_log(tick);
     CREATE INDEX IF NOT EXISTS idx_events_agent ON event_log(agent_id);
     CREATE INDEX IF NOT EXISTS idx_memory_agent_tick ON memory_short_term(agent_id, tick);
     CREATE INDEX IF NOT EXISTS idx_journal_agent ON journal(agent_id, epoch);
+    CREATE INDEX IF NOT EXISTS idx_loc_structures_location ON location_structures(location_id);
+    CREATE INDEX IF NOT EXISTS idx_loc_storage_location ON location_storage(location_id);
   `);
 
   // Insert simulation singleton row if not exists

@@ -9,8 +9,9 @@ import { validatePersonalityProfile } from './personality.js';
 import { AgentRow, getLivingAgents, getLocation, getSimulation, getAgentInventory } from '../db/queries.js';
 import { SeededRNG } from '../rng.js';
 import { log } from '../utils/logger.js';
+import { trackCost } from '../utils/cost-tracker.js';
 
-export const BATCH_SIZE = 4;
+export const BATCH_SIZE = 10;
 
 export interface AgentAction {
   agentId: string;
@@ -170,6 +171,8 @@ export async function orchestrateTick(
         const userMessage = `${prompt.perceptionJson}\n\n${prompt.memoryEntries}\n\n${prompt.tickContext}\n\nYou MUST use at least one survival or social action tool (gather, eat, rest, move, explore, craft, speak, trade, give). Think with internal_monologue first if needed, then ACT.`;
 
         const FREE_ACTIONS = new Set(['internal_monologue', 'check_relationships']);
+        const SPEECH_LIMIT = 2;
+        let speechCount = 0;
         const allFreeActions: AgentAction[] = [];
         const allRealActions: AgentAction[] = [];
 
@@ -187,6 +190,7 @@ export async function orchestrateTick(
 
           totalInput += response.inputTokens;
           totalOutput += response.outputTokens;
+          trackCost(db, response.inputTokens, response.outputTokens, agentModel);
 
           if (response.toolCalls.length === 0) break;
 
@@ -200,7 +204,10 @@ export async function orchestrateTick(
             };
             if (FREE_ACTIONS.has(tc.name)) {
               allFreeActions.push(action);
+            } else if (tc.name === 'speak' && speechCount >= SPEECH_LIMIT) {
+              // Drop excess speech — agents talk too much
             } else if (allRealActions.length < actionsPerTick) {
+              if (tc.name === 'speak') speechCount++;
               allRealActions.push(action);
             }
           }

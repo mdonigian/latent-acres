@@ -36,27 +36,42 @@ RULES:
 - You can trade items, give gifts, form alliances, or secretly betray them.
 - Other agents may lie to you. Trust is earned.
 
-TRIBAL COUNCIL:
-- Every epoch (12 ticks), a Tribal Council convenes following Robert's Rules of Order.
-- One agent is the Chieftain — they call the council to order and break tie votes.
-- Any agent may propose a motion (general, banishment, resource allocation, no confidence, etc.).
-- Motions require a second from a different agent to proceed to debate and vote.
-- Votes are secret (aye/nay/abstain). Only totals are announced, not who voted how.
-- A motion of no confidence can depose the Chieftain, triggering a new election.
-- Banishment is permanent — if the council votes to banish you, you are removed from the world.
-- The council can vote on anything. Enforcement of non-banishment motions is social, not mechanical.
+RESOURCES:
+- 7 resource types: food, wood, stone, fiber, freshwater, clay, herbs.
+- Clay is found near water (Waterfall, Tidal Pools, Mangrove Swamp).
+- Herbs are found in dense vegetation (Dense Jungle, Mangrove Swamp).
+
+STRUCTURES:
+- Agents can craft Tier 4 structure recipes (shelter, hut, storage_chest, etc.) to place permanent structures at their current location.
+- Structures benefit all agents at the location. Your perception shows current location structures.
+- shelter/hut: Agents resting here get a rest bonus (+10 or +25 energy). Huts also protect from storm damage.
+- storage_chest: Enables deposit and withdraw actions at the location for shared item storage.
+- rain_collector: Passively generates freshwater at the location each tick.
+
+CONSUMABLE ITEMS:
+- Craft consumables (herbal_poultice, herbal_tea, medicine) and use_item to apply their effects.
+- herbal_poultice: heals 20 health. herbal_tea: restores 15 energy and reduces hunger 10. medicine: heals 40 health.
 
 STRATEGY GUIDANCE:
-- Balance survival needs (food, rest, health) with social positioning (alliances, reputation, council influence).
-- MOVE to other locations to find other agents, discover resources, and build relationships.
-- TALK to other agents when you share a location — speak, trade, form alliances. Isolation is dangerous.
-- You can see where other agents are in your perception — go find them!
-- Use internal_monologue to think briefly, then ALWAYS take a concrete action (gather, eat, move, speak, etc.).
-- Information is power — what you share and withhold matters.
-- The Chieftain role is powerful but precarious. Allies matter.
+- Focus on SURVIVAL first: gather food, eat, craft tools and shelter.
+- MOVE to other locations to find resources and meet other agents.
+- TALK to agents at your location — but keep it brief (1-2 messages per tick, not more).
+- Don't talk about council unless it's within 3 ticks. Focus on the present.
+- Craft items when you have the materials — check your craftableRecipes list!
+- Build structures (shelter, storage_chest) to improve your location for everyone.
+
+Note: A Tribal Council happens every 12 ticks. You'll receive council tools when it convenes.
 - There is no "winning." There is only surviving, governing, and the relationships you build.
 
-Respond with tool calls. You MUST include at least one action tool (gather, eat, rest, move, explore, craft, speak, trade, give) — not just internal_monologue.`;
+PRIORITIES (in order):
+1. Eat if hunger > 40 and you have food
+2. Gather food if you have none
+3. Craft useful items if you have materials (check your craftableRecipes list!)
+4. Move to find other agents or resources
+5. Speak to others at your location (max 2 per tick)
+6. Rest if energy < 30
+
+Respond with tool calls. You MUST include at least one survival action (gather, eat, rest, move, explore, craft) — not just monologue or speech.`;
 }
 
 export function assemblePrompt(
@@ -83,11 +98,14 @@ export function assemblePrompt(
     }
   }
 
+  const councilNote = context.ticksUntilTribalCouncil <= 3
+    ? `\n- Tribal Council in ${context.ticksUntilTribalCouncil} ticks! Prepare your position.`
+    : '';
+
   const tickContext = `CURRENT STATE:
 - Tick: ${context.currentTick}
 - Epoch: ${context.currentEpoch}
-- Ticks until Tribal Council: ${context.ticksUntilTribalCouncil}
-- Actions remaining this tick: ${context.actionsRemaining}`;
+- Actions remaining this tick: ${context.actionsRemaining}${councilNote}`;
 
   return { systemPrompt, perceptionJson, memoryEntries, tickContext };
 }

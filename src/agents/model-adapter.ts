@@ -30,7 +30,7 @@ export class ClaudeAdapter implements ModelAdapter {
     tools: { name: string; description: string; input_schema: Record<string, unknown> }[],
   ): Promise<ModelResponse> {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: this.apiKey });
+    const client = new Anthropic({ apiKey: this.apiKey, timeout: 30_000 });
 
     const params: Record<string, unknown> = {
       model: this.model,
@@ -126,6 +126,7 @@ export class OpenAIAdapter implements ModelAdapter {
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`,

@@ -12,7 +12,7 @@ describe('Configuration', () => {
   it('loadConfig has correct defaults', () => {
     const config = loadConfig();
     expect(config.ticksPerEpoch).toBe(12);
-    expect(config.actionsPerTick).toBe(2);
+    expect(config.actionsPerTick).toBe(6);
     expect(config.tickDelayMs).toBe(1000);
     expect(config.discussionRounds).toBe(3);
     expect(config.dbPath).toBe('data/latent-acres.db');

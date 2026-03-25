@@ -32,6 +32,7 @@ export const DEFAULT_ISLAND: LocationDef[] = [
       { type: 'wood', quantity: 10, maxQuantity: 15, gatherDifficulty: 0.4, regenRate: 2 },
       { type: 'fiber', quantity: 8, maxQuantity: 12, gatherDifficulty: 0.3, regenRate: 1.5 },
       { type: 'food', quantity: 4, maxQuantity: 6, gatherDifficulty: 0.6, regenRate: 1 },
+      { type: 'herbs', quantity: 5, maxQuantity: 8, gatherDifficulty: 0.4, regenRate: 1 },
     ],
   },
   {
@@ -43,6 +44,7 @@ export const DEFAULT_ISLAND: LocationDef[] = [
     resources: [
       { type: 'freshwater', quantity: 12, maxQuantity: 15, gatherDifficulty: 0.1, regenRate: 3 },
       { type: 'food', quantity: 3, maxQuantity: 5, gatherDifficulty: 0.5, regenRate: 0.5 },
+      { type: 'clay', quantity: 6, maxQuantity: 8, gatherDifficulty: 0.4, regenRate: 1 },
     ],
   },
   {
@@ -76,6 +78,7 @@ export const DEFAULT_ISLAND: LocationDef[] = [
     resources: [
       { type: 'food', quantity: 7, maxQuantity: 10, gatherDifficulty: 0.3, regenRate: 1.5 },
       { type: 'stone', quantity: 3, maxQuantity: 5, gatherDifficulty: 0.5, regenRate: 0.5 },
+      { type: 'clay', quantity: 4, maxQuantity: 6, gatherDifficulty: 0.4, regenRate: 0.5 },
     ],
   },
   {
@@ -88,6 +91,8 @@ export const DEFAULT_ISLAND: LocationDef[] = [
       { type: 'fiber', quantity: 10, maxQuantity: 12, gatherDifficulty: 0.3, regenRate: 2 },
       { type: 'food', quantity: 6, maxQuantity: 8, gatherDifficulty: 0.5, regenRate: 1 },
       { type: 'wood', quantity: 4, maxQuantity: 6, gatherDifficulty: 0.6, regenRate: 0.5 },
+      { type: 'clay', quantity: 3, maxQuantity: 5, gatherDifficulty: 0.5, regenRate: 0.5 },
+      { type: 'herbs', quantity: 6, maxQuantity: 10, gatherDifficulty: 0.4, regenRate: 1.5 },
     ],
   },
   {

@@ -490,3 +490,92 @@ export function getAllJournalEntries(db: Database.Database, limit = 50): Journal
     'SELECT * FROM journal ORDER BY epoch DESC, tick DESC LIMIT ?'
   ).all(limit) as JournalRow[];
 }
+
+// --- Location structure queries ---
+
+export interface LocationStructureRow {
+  id: string;
+  location_id: string;
+  structure_type: string;
+  built_by_agent_id: string | null;
+  built_at_tick: number | null;
+  durability: number;
+  properties_json: string | null;
+}
+
+export function createLocationStructure(db: Database.Database, structure: {
+  id: string; locationId: string; structureType: string;
+  builtByAgentId?: string; builtAtTick?: number; propertiesJson?: string;
+}): void {
+  db.prepare(
+    'INSERT OR REPLACE INTO location_structures (id, location_id, structure_type, built_by_agent_id, built_at_tick, properties_json) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(structure.id, structure.locationId, structure.structureType,
+    structure.builtByAgentId ?? null, structure.builtAtTick ?? null, structure.propertiesJson ?? null);
+}
+
+export function getStructuresAtLocation(db: Database.Database, locationId: string): LocationStructureRow[] {
+  return db.prepare('SELECT * FROM location_structures WHERE location_id = ?').all(locationId) as LocationStructureRow[];
+}
+
+export function removeLocationStructure(db: Database.Database, structureId: string): void {
+  db.prepare('DELETE FROM location_structures WHERE id = ?').run(structureId);
+}
+
+// --- Location storage queries ---
+
+export interface LocationStorageRow {
+  id: string;
+  location_id: string;
+  item_name: string;
+  item_type: string;
+  quantity: number;
+  properties_json: string | null;
+}
+
+export function addLocationStorageItem(db: Database.Database, item: {
+  id: string; locationId: string; itemName: string; itemType: string;
+  quantity?: number; propertiesJson?: string;
+}): void {
+  db.prepare(
+    'INSERT INTO location_storage (id, location_id, item_name, item_type, quantity, properties_json) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(item.id, item.locationId, item.itemName, item.itemType, item.quantity ?? 1, item.propertiesJson ?? null);
+}
+
+export function getLocationStorage(db: Database.Database, locationId: string): LocationStorageRow[] {
+  return db.prepare('SELECT * FROM location_storage WHERE location_id = ?').all(locationId) as LocationStorageRow[];
+}
+
+export function removeLocationStorageItem(db: Database.Database, itemId: string): void {
+  db.prepare('DELETE FROM location_storage WHERE id = ?').run(itemId);
+}
+
+export function updateLocationStorageQuantity(db: Database.Database, itemId: string, quantity: number): void {
+  if (quantity <= 0) {
+    removeLocationStorageItem(db, itemId);
+  } else {
+    db.prepare('UPDATE location_storage SET quantity = ? WHERE id = ?').run(quantity, itemId);
+  }
+}
+
+export function getTotalLocationStorageQuantity(db: Database.Database, locationId: string): number {
+  const row = db.prepare('SELECT COALESCE(SUM(quantity), 0) as total FROM location_storage WHERE location_id = ?').get(locationId) as { total: number };
+  return row.total;
+}
+
+// --- Epoch recap queries ---
+
+export interface EpochRecapRow {
+  epoch: number;
+  recap_text: string;
+  created_at: string;
+}
+
+export function upsertEpochRecap(db: Database.Database, epoch: number, recapText: string): void {
+  db.prepare(
+    'INSERT OR IGNORE INTO epoch_recaps (epoch, recap_text) VALUES (?, ?)'
+  ).run(epoch, recapText);
+}
+
+export function getEpochRecap(db: Database.Database, epoch: number): EpochRecapRow | undefined {
+  return db.prepare('SELECT * FROM epoch_recaps WHERE epoch = ?').get(epoch) as EpochRecapRow | undefined;
+}

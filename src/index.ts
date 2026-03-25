@@ -78,6 +78,7 @@ program
   .description('Run the simulation')
   .option('--tick-delay <ms>', 'Delay between ticks in ms', '1000')
   .option('--ticks <n>', 'Number of ticks to run')
+  .option('--actions <n>', 'Actions per agent per tick', '6')
   .option('--dry-run', 'Use heuristic agents instead of API calls')
   .option('--db-path <path>', 'Database path', 'data/latent-acres.db')
   .option('--dashboard', 'Start the API/WebSocket server for the dashboard')
@@ -102,6 +103,7 @@ program
     const config = loadConfig({
       ...JSON.parse(sim.config_json),
       tickDelayMs: parseInt(opts.tickDelay, 10),
+      actionsPerTick: parseInt(opts.actions, 10),
     });
 
     // Per-agent model adapters are resolved in the orchestrator from each agent's model field

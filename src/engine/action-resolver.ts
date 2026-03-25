@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { AgentAction } from '../agents/orchestrator.js';
-import { getAgent, updateAgentStats, getResourcesAtLocation, addInventoryItem, getAgentInventory, appendEvent, getSimulation, getLocation, removeInventoryItem, updateInventoryQuantity, updateResourceQuantity, getLivingAgents, adjustRelationship } from '../db/queries.js';
+import { getAgent, updateAgentStats, getResourcesAtLocation, addInventoryItem, getAgentInventory, appendEvent, getSimulation, getLocation, removeInventoryItem, updateInventoryQuantity, updateResourceQuantity, getLivingAgents, adjustRelationship, getStructuresAtLocation, addLocationStorageItem, getLocationStorage, removeLocationStorageItem, updateLocationStorageQuantity, getTotalLocationStorageQuantity } from '../db/queries.js';
 import { depleteResource } from './resource-manager.js';
 import { craft } from '../world/crafting.js';
 import { SeededRNG } from '../rng.js';
@@ -96,9 +96,18 @@ export function resolveActions(
     switch (action.action) {
       case 'rest': {
         const baseRecovery = 25 + rng.randomInt(0, 15);
-        const inventory = getAgentInventory(db, agent.id);
-        const hasShelter = inventory.some(i => i.item_name === 'shelter');
-        const recovery = hasShelter ? baseRecovery + 10 : baseRecovery;
+        const locationStructures = getStructuresAtLocation(db, agent.location_id);
+        const hut = locationStructures.find(s => s.structure_type === 'hut');
+        const shelter = locationStructures.find(s => s.structure_type === 'shelter');
+        let structureBonus = 0;
+        if (hut) {
+          const props = hut.properties_json ? JSON.parse(hut.properties_json) : {};
+          structureBonus = props.restBonus ?? 25;
+        } else if (shelter) {
+          const props = shelter.properties_json ? JSON.parse(shelter.properties_json) : {};
+          structureBonus = props.restBonus ?? 10;
+        }
+        const recovery = baseRecovery + structureBonus;
         const newEnergy = Math.min(100, agent.energy + recovery);
         updateAgentStats(db, agent.id, { energy: newEnergy });
         results.push({ agentId: action.agentId, agentName: action.agentName, action: 'rest', result: `Recovered ${newEnergy - agent.energy} energy`, success: true });
@@ -157,7 +166,7 @@ export function resolveActions(
       case 'craft': {
         const recipeId = action.params.recipe as string;
         updateAgentStats(db, agent.id, { energy: Math.max(0, agent.energy - action.energyCost) });
-        const craftResult = craft(db, agent.id, recipeId);
+        const craftResult = craft(db, agent.id, recipeId, agent.location_id, sim.current_tick);
         if (craftResult.success) {
           results.push({ agentId: action.agentId, agentName: action.agentName, action: 'craft', result: `Crafted ${craftResult.outputItem}`, success: true });
           appendEvent(db, {
@@ -233,16 +242,7 @@ export function resolveActions(
           success: true,
         });
 
-        // Speaking positively adjusts relationships
-        if (targetAgent) {
-          adjustRelationship(db, action.agentId, targetAgent.id, 2, sim.current_tick);
-        } else {
-          // Public speech: small positive bump with all co-located agents
-          const colocated = getLivingAgents(db).filter(a => a.id !== action.agentId && a.location_id === agent.location_id);
-          for (const other of colocated) {
-            adjustRelationship(db, action.agentId, other.id, 1, sim.current_tick);
-          }
-        }
+        // Relationship adjustments for speech handled by the sentiment judge after tick
 
         appendEvent(db, {
           tick: sim.current_tick, epoch: sim.current_epoch,
@@ -360,6 +360,184 @@ export function resolveActions(
           eventType: 'betray_alliance', agentId: action.agentId,
           dataJson: JSON.stringify({ alliance: action.params.alliance_name }),
         });
+        break;
+      }
+
+      case 'use_item': {
+        const itemName = action.params.item as string;
+        const inventory = getAgentInventory(db, agent.id);
+        const item = inventory.find(i => i.item_name === itemName);
+        if (!item) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'use_item', result: `No ${itemName} in inventory`, success: false });
+          break;
+        }
+        if (item.item_type !== 'consumable') {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'use_item', result: `${itemName} is not a consumable`, success: false });
+          break;
+        }
+        const props = item.properties_json ? JSON.parse(item.properties_json) : {};
+        const updates: { health?: number; energy?: number; hunger?: number } = {};
+        if (props.healAmount) updates.health = Math.min(100, agent.health + props.healAmount);
+        if (props.energyRestore) updates.energy = Math.min(100, agent.energy + props.energyRestore);
+        if (props.hungerReduce) updates.hunger = Math.max(0, agent.hunger - props.hungerReduce);
+        updateAgentStats(db, agent.id, updates);
+        if (item.quantity <= 1) {
+          removeInventoryItem(db, item.id);
+        } else {
+          updateInventoryQuantity(db, item.id, item.quantity - 1);
+        }
+        results.push({ agentId: action.agentId, agentName: action.agentName, action: 'use_item', result: `Used ${itemName}`, success: true });
+        appendEvent(db, {
+          tick: sim.current_tick, epoch: sim.current_epoch,
+          eventType: 'use_item', agentId: action.agentId,
+          dataJson: JSON.stringify({ item: itemName }),
+        });
+        break;
+      }
+
+      case 'deposit': {
+        const itemName = action.params.item as string;
+        const locStructures = getStructuresAtLocation(db, agent.location_id);
+        const storageChest = locStructures.find(s => s.structure_type === 'storage_chest');
+        if (!storageChest) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'deposit', result: 'No storage chest at this location', success: false });
+          break;
+        }
+        const chestProps = storageChest.properties_json ? JSON.parse(storageChest.properties_json) : {};
+        const capacity = chestProps.capacity ?? 20;
+        const currentTotal = getTotalLocationStorageQuantity(db, agent.location_id);
+        if (currentTotal >= capacity) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'deposit', result: 'Storage chest is full', success: false });
+          break;
+        }
+        const inv = getAgentInventory(db, agent.id);
+        const item = inv.find(i => i.item_name === itemName);
+        if (!item) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'deposit', result: `No ${itemName} in inventory`, success: false });
+          break;
+        }
+        if (item.quantity <= 1) {
+          removeInventoryItem(db, item.id);
+        } else {
+          updateInventoryQuantity(db, item.id, item.quantity - 1);
+        }
+        addLocationStorageItem(db, {
+          id: `storage_${agent.location_id}_${itemName}_${sim.current_tick}_${rng.randomInt(0, 99999)}`,
+          locationId: agent.location_id,
+          itemName: item.item_name,
+          itemType: item.item_type,
+          quantity: 1,
+          propertiesJson: item.properties_json ?? undefined,
+        });
+        results.push({ agentId: action.agentId, agentName: action.agentName, action: 'deposit', result: `Deposited ${itemName} into storage`, success: true });
+        appendEvent(db, {
+          tick: sim.current_tick, epoch: sim.current_epoch,
+          eventType: 'deposit', agentId: action.agentId, locationId: agent.location_id,
+          dataJson: JSON.stringify({ item: itemName }),
+        });
+        break;
+      }
+
+      case 'withdraw': {
+        const itemName = action.params.item as string;
+        const locStructures = getStructuresAtLocation(db, agent.location_id);
+        const storageChest = locStructures.find(s => s.structure_type === 'storage_chest');
+        if (!storageChest) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'withdraw', result: 'No storage chest at this location', success: false });
+          break;
+        }
+        const storage = getLocationStorage(db, agent.location_id);
+        const storageItem = storage.find(s => s.item_name === itemName);
+        if (!storageItem) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'withdraw', result: `${itemName} not in storage`, success: false });
+          break;
+        }
+        if (storageItem.quantity <= 1) {
+          removeLocationStorageItem(db, storageItem.id);
+        } else {
+          updateLocationStorageQuantity(db, storageItem.id, storageItem.quantity - 1);
+        }
+        addInventoryItem(db, {
+          id: `${agent.id}_${itemName}_withdraw_${sim.current_tick}_${rng.randomInt(0, 99999)}`,
+          agentId: agent.id,
+          itemName: storageItem.item_name,
+          itemType: storageItem.item_type,
+          quantity: 1,
+          propertiesJson: storageItem.properties_json ?? undefined,
+        });
+        results.push({ agentId: action.agentId, agentName: action.agentName, action: 'withdraw', result: `Withdrew ${itemName} from storage`, success: true });
+        appendEvent(db, {
+          tick: sim.current_tick, epoch: sim.current_epoch,
+          eventType: 'withdraw', agentId: action.agentId, locationId: agent.location_id,
+          dataJson: JSON.stringify({ item: itemName }),
+        });
+        break;
+      }
+
+      case 'attack': {
+        const targetName = String(action.params.target ?? '');
+        const allAgents = getLivingAgents(db);
+        const targetAgent = allAgents.find(a => a.name.toLowerCase() === targetName.toLowerCase());
+
+        if (!targetAgent) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'attack', result: `Agent "${targetName}" not found`, success: false });
+          break;
+        }
+        if (targetAgent.location_id !== agent.location_id) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'attack', result: `${targetName} is not at your location`, success: false });
+          break;
+        }
+        if (targetAgent.id === agent.id) {
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'attack', result: 'You cannot attack yourself', success: false });
+          break;
+        }
+
+        // Deduct energy
+        updateAgentStats(db, agent.id, { energy: Math.max(0, agent.energy - action.energyCost) });
+
+        // ~30% success rate
+        const roll = rng.random();
+        const success = roll < 0.3;
+
+        // All agents at this location witness it
+        const witnesses = allAgents.filter(a => a.location_id === agent.location_id && a.id !== agent.id);
+
+        if (success) {
+          // Target dies
+          updateAgentStats(db, targetAgent.id, { health: 0 });
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'attack', result: `Killed ${targetName}`, success: true });
+
+          appendEvent(db, {
+            tick: sim.current_tick, epoch: sim.current_epoch,
+            eventType: 'murder', agentId: action.agentId, targetAgentId: targetAgent.id,
+            locationId: agent.location_id,
+            dataJson: JSON.stringify({ attacker: action.agentName, victim: targetName, witnesses: witnesses.map(w => w.name) }),
+          });
+        } else {
+          // Attacker takes heavy damage, target takes light damage
+          const attackerDamage = rng.randomInt(20, 30);
+          const targetDamage = rng.randomInt(5, 10);
+          updateAgentStats(db, agent.id, { health: Math.max(0, agent.health - attackerDamage) });
+          updateAgentStats(db, targetAgent.id, { health: Math.max(0, targetAgent.health - targetDamage) });
+          results.push({ agentId: action.agentId, agentName: action.agentName, action: 'attack', result: `Failed to kill ${targetName} — took ${attackerDamage} damage`, success: false });
+
+          appendEvent(db, {
+            tick: sim.current_tick, epoch: sim.current_epoch,
+            eventType: 'attack_failed', agentId: action.agentId, targetAgentId: targetAgent.id,
+            locationId: agent.location_id,
+            dataJson: JSON.stringify({ attacker: action.agentName, victim: targetName, attackerDamage, targetDamage, witnesses: witnesses.map(w => w.name) }),
+          });
+        }
+
+        // Massive social penalty — all witnesses distrust the attacker
+        for (const w of witnesses) {
+          adjustRelationship(db, w.id, agent.id, -30, sim.current_tick);
+        }
+        // Target (if alive) hates the attacker
+        if (!success) {
+          adjustRelationship(db, targetAgent.id, agent.id, -50, sim.current_tick);
+        }
+
         break;
       }
 

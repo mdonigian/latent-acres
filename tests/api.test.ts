@@ -113,6 +113,31 @@ describe('GET /api/locations', () => {
       expect(['scarce', 'moderate', 'abundant']).toContain(r.availability);
     }
   });
+
+  it('includes structures array per location (empty when no structures built)', async () => {
+    const res = await request('/locations');
+    const data = await res.json();
+    for (const loc of data) {
+      expect(loc).toHaveProperty('structures');
+      expect(Array.isArray(loc.structures)).toBe(true);
+    }
+    // No structures built yet
+    const beach = data.find((l: any) => l.id === 'the_beach');
+    expect(beach.structures).toHaveLength(0);
+  });
+
+  it('structures array contains structure when one is placed', async () => {
+    db.prepare(
+      'INSERT INTO location_structures (id, location_id, structure_type, properties_json) VALUES (?, ?, ?, ?)'
+    ).run('test_struct', 'the_beach', 'shelter', JSON.stringify({ restBonus: 10 }));
+
+    const res = await request('/locations');
+    const data = await res.json();
+    const beach = data.find((l: any) => l.id === 'the_beach');
+    expect(beach.structures).toHaveLength(1);
+    expect(beach.structures[0].type).toBe('shelter');
+    expect(beach.structures[0].properties.restBonus).toBe(10);
+  });
 });
 
 describe('GET /api/map', () => {
@@ -205,5 +230,31 @@ describe('Server starts and serves endpoints', () => {
   it('server is listening', async () => {
     const res = await request('/status');
     expect(res.ok).toBe(true);
+  });
+});
+
+describe('GET /api/recap/:epoch', () => {
+  it('returns 404 when no recap exists', async () => {
+    const res = await request('/recap/0');
+    expect(res.status).toBe(404);
+    const data = await res.json();
+    expect(data.error).toBeDefined();
+  });
+
+  it('returns recap text after it is stored', async () => {
+    db.prepare('INSERT INTO epoch_recaps (epoch, recap_text) VALUES (?, ?)').run(0, 'Epoch 0 was dramatic.');
+    const res = await request('/recap/0');
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.epoch).toBe(0);
+    expect(data.recap).toBe('Epoch 0 was dramatic.');
+  });
+
+  it('is idempotent: second insert is ignored', async () => {
+    db.prepare('INSERT INTO epoch_recaps (epoch, recap_text) VALUES (?, ?)').run(0, 'First recap.');
+    db.prepare('INSERT OR IGNORE INTO epoch_recaps (epoch, recap_text) VALUES (?, ?)').run(0, 'Second recap.');
+    const res = await request('/recap/0');
+    const data = await res.json();
+    expect(data.recap).toBe('First recap.');
   });
 });

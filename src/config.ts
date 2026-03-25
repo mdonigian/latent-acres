@@ -9,7 +9,7 @@ export interface SimulationConfig {
 
 export const DEFAULT_CONFIG: SimulationConfig = {
   ticksPerEpoch: 12,
-  actionsPerTick: 2,
+  actionsPerTick: 6,
   tickDelayMs: 1000,
   discussionRounds: 3,
   seed: 1,

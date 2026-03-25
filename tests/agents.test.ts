@@ -204,7 +204,7 @@ describe('Orchestrator', () => {
     expect(check.reason).toContain('Insufficient energy');
   });
 
-  it('BATCH_SIZE is 4', () => {
-    expect(BATCH_SIZE).toBe(4);
+  it('BATCH_SIZE is 10', () => {
+    expect(BATCH_SIZE).toBe(10);
   });
 });

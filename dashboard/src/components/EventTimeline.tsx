@@ -22,6 +22,8 @@ const TYPE_ICONS: Record<string, string> = {
   explore: '\u{1F50D}',
   election_result: '\u{1F451}',
   no_confidence_passed: '\u{1F4A5}',
+  murder: '\u{1F5E1}',
+  attack_failed: '\u{2694}',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -52,7 +54,7 @@ function summarizeEvent(event: EventData): string {
       case 'gather': return `gathered ${data.amount} ${data.resource}`;
       case 'move': return `moved to ${data.to}`;
       case 'eat': return `ate ${data.item}, hunger -${data.hungerReduction}`;
-      case 'rest': return `rested, +${data.energyRecovered} energy`;
+      case 'rest': return `rested, +${data.energyGained ?? data.energyRecovered ?? '?'} energy`;
       case 'craft': return `crafted ${data.recipe}`;
       case 'death': return `died: ${data.cause}`;
       case 'speech': return `"${data.message}"`;
@@ -61,6 +63,8 @@ function summarizeEvent(event: EventData): string {
       case 'epoch_boundary': return `Epoch ${data.newEpoch} begins`;
       case 'election_result': return `elected as new Chieftain`;
       case 'explore': return data.found || 'explored area';
+      case 'murder': return `killed ${data.victim}`;
+      case 'attack_failed': return `tried to kill ${data.victim} — failed, took ${data.attackerDamage} damage`;
       default: return JSON.stringify(data).slice(0, 80);
     }
   } catch {
@@ -105,7 +109,7 @@ export function EventTimeline({ events }: { events: EventData[] }) {
           const icon = TYPE_ICONS[event.eventType] ?? '\u{25CF}';
           const color = TYPE_COLORS[event.eventType] ?? 'text-gray-300';
           return (
-            <div key={event.id} className="flex items-start gap-2 py-0.5 hover:bg-gray-700/20 rounded px-1">
+            <div key={event.id} className="flex items-start gap-2 py-0.5 hover:bg-gray-700/20 rounded px-1 animate-fade-in">
               <span className="text-gray-600 w-6 shrink-0 text-right tabular-nums">
                 {event.tick}
               </span>

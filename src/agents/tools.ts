@@ -9,7 +9,7 @@ export interface ToolDefinition {
 }
 
 export const ENERGY_COSTS: Record<string, number> = {
-  gather: 15,
+  gather: 10,
   craft: 10,
   eat: 0,
   rest: 0,
@@ -26,18 +26,22 @@ export const ENERGY_COSTS: Record<string, number> = {
   council_propose_motion: 0,
   council_second_motion: 0,
   council_vote: 0,
+  use_item: 0,
+  deposit: 0,
+  withdraw: 0,
+  attack: 25,
 };
 
 export const PHASE1_TOOLS: ToolDefinition[] = [
   {
     name: 'gather',
-    description: 'Gather resources at your current location. Costs 15 energy.',
+    description: 'Gather resources at your current location. Costs 10 energy.',
     input_schema: {
       type: 'object',
       properties: {
         resource: {
           type: 'string',
-          description: 'The type of resource to gather (e.g., "food", "wood", "stone", "fiber", "freshwater").',
+          description: 'The type of resource to gather: "food", "wood", "stone", "fiber", "freshwater", "clay", "herbs".',
         },
       },
       required: ['resource'],
@@ -45,13 +49,13 @@ export const PHASE1_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'craft',
-    description: 'Craft an item using resources in your inventory. Costs 10 energy.',
+    description: 'Craft an item using resources in your inventory. Costs 10 energy. Structure recipes place the structure at your current location.\n\nTier 1 (raw resources): stone_axe (1 wood+2 stone), fishing_spear (2 wood+1 stone), rope (4 fiber), clay_brick (3 clay+1 wood), torch (1 wood+1 fiber), herbal_poultice (2 herbs+1 freshwater)\n\nTier 2 (require crafted items): treated_wood (2 wood+1 freshwater), woven_mat (2 fiber+1 rope), clay_pot (2 clay+1 wood), herbal_tea (1 herbs+1 freshwater+1 clay_pot), medicine (3 herbs+2 freshwater+1 clay_pot)\n\nTier 3 (advanced tools): reinforced_axe (1 stone_axe+1 rope+1 treated_wood), fishing_net (3 rope+2 fiber), water_skin (2 fiber+1 rope)\n\nTier 4 (structures): shelter (5 wood+3 fiber), hut (3 treated_wood+2 rope+4 clay_brick), storage_chest (3 wood+2 rope), signal_fire (4 wood+2 stone+1 rope), defensive_wall (6 stone+4 clay_brick+2 rope), rain_collector (2 treated_wood+1 clay_pot+2 fiber), drying_rack (3 wood+2 rope+1 woven_mat), kiln (5 stone+3 clay+2 wood)',
     input_schema: {
       type: 'object',
       properties: {
         recipe: {
           type: 'string',
-          description: 'The recipe ID to craft (e.g., "fishing_spear", "shelter", "rope", "stone_axe").',
+          description: 'The recipe ID to craft.',
         },
       },
       required: ['recipe'],
@@ -139,6 +143,62 @@ export const PHASE1_TOOLS: ToolDefinition[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: 'use_item',
+    description: 'Consume a consumable item from your inventory. No energy cost. Consumables: herbal_poultice (heals 20 health), herbal_tea (restores 15 energy, reduces hunger 10), medicine (heals 40 health).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item: {
+          type: 'string',
+          description: 'The name of the consumable item to use.',
+        },
+      },
+      required: ['item'],
+    },
+  },
+  {
+    name: 'deposit',
+    description: 'Put an item from your inventory into a storage chest at your current location. Requires a storage_chest structure at your location. No energy cost.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item: {
+          type: 'string',
+          description: 'The name of the item to deposit.',
+        },
+      },
+      required: ['item'],
+    },
+  },
+  {
+    name: 'withdraw',
+    description: 'Take an item from a storage chest at your current location into your inventory. Requires a storage_chest structure at your location. No energy cost.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item: {
+          type: 'string',
+          description: 'The name of the item to withdraw.',
+        },
+      },
+      required: ['item'],
+    },
+  },
+];
+
+export const COMBAT_TOOLS: ToolDefinition[] = [
+  {
+    name: 'attack',
+    description: 'Attempt to kill another agent at your location. Risky: ~30% success rate. If you fail, you take heavy damage. Witnesses will see it and it will affect your relationships. Costs 25 energy.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Name of the agent to attack. Must be at your location.' },
+      },
+      required: ['target'],
     },
   },
 ];
@@ -260,7 +320,20 @@ export const COUNCIL_TOOLS: ToolDefinition[] = [
 
 export function getToolDefinitions(phase: number = 2): ToolDefinition[] {
   if (phase === 1) return PHASE1_TOOLS;
-  return [...PHASE1_TOOLS, ...SOCIAL_TOOLS];
+  // Action round: no speech tools (those are in the communication round)
+  const actionTools = [...PHASE1_TOOLS, ...COMBAT_TOOLS,
+    // Keep non-speech social tools (trade, give, alliance, betray)
+    ...SOCIAL_TOOLS.filter(t => t.name !== 'speak'),
+  ];
+  return actionTools;
+}
+
+export function getCommunicationToolDefinitions(): ToolDefinition[] {
+  // Communication round: speech + internal monologue only
+  return [
+    SOCIAL_TOOLS.find(t => t.name === 'speak')!,
+    PHASE1_TOOLS.find(t => t.name === 'internal_monologue')!,
+  ];
 }
 
 export function getCouncilToolDefinitions(): ToolDefinition[] {

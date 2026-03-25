@@ -38,8 +38,17 @@ export function RelationshipGraph({ relationships, agents }: { relationships: Re
           </radialGradient>
         </defs>
 
-        {/* Relationship edges */}
-        {relationships.map((r, i) => {
+        {/* Relationship edges — deduplicate pairs */}
+        {(() => {
+          const seen = new Set<string>();
+          const deduped = relationships.filter(r => {
+            const key = [r.agentA, r.agentB].sort().join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          return deduped;
+        })().map((r, i) => {
           const from = positions[r.agentA];
           const to = positions[r.agentB];
           if (!from || !to) return null;

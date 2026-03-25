@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
-import { AgentRow, getAgentInventory, getResourcesAtLocation, getLivingAgents, getSimulation, getLocation } from '../db/queries.js';
+import { AgentRow, getAgentInventory, getResourcesAtLocation, getLivingAgents, getSimulation, getLocation, getStructuresAtLocation } from '../db/queries.js';
 import { DEFAULT_ISLAND } from '../world/island.js';
+import { RECIPES, canCraft } from '../world/crafting.js';
 
 export interface AgentVisibleState {
   name: string;
@@ -25,6 +26,7 @@ export interface PerceptionPayload {
     description: string;
     resources: ResourceEstimate[];
     adjacentLocations: { id: string; name: string }[];
+    structures: { type: string; properties: Record<string, unknown> }[];
   };
   otherAgentsHere: AgentVisibleState[];
   otherAgentsElsewhere: { name: string; location: string }[];
@@ -34,6 +36,7 @@ export interface PerceptionPayload {
     ticksUntilCouncil: number;
   };
   recentMessages: string[];
+  craftableRecipes: string[];
 }
 
 function getResourceAvailability(quantity: number, maxQuantity: number): 'scarce' | 'moderate' | 'abundant' {
@@ -70,6 +73,7 @@ export function buildPerception(
   const resources = getResourcesAtLocation(db, agent.location_id);
   const allAgents = getLivingAgents(db);
   const sim = getSimulation(db);
+  const locationStructures = getStructuresAtLocation(db, agent.location_id);
 
   const otherAgentsHere = allAgents
     .filter(a => a.id !== agent.id && a.location_id === agent.location_id)
@@ -135,6 +139,10 @@ export function buildPerception(
       description: locationDescription,
       resources: resourceEstimates,
       adjacentLocations,
+      structures: locationStructures.map(s => ({
+        type: s.structure_type,
+        properties: s.properties_json ? JSON.parse(s.properties_json) : {},
+      })),
     },
     otherAgentsHere,
     otherAgentsElsewhere: agentsElsewhere,
@@ -144,5 +152,8 @@ export function buildPerception(
       ticksUntilCouncil,
     },
     recentMessages,
+    craftableRecipes: RECIPES
+      .filter(r => canCraft(db, agent.id, r.id).success)
+      .map(r => `${r.id} (${r.inputs.map(i => `${i.quantity} ${i.itemName}`).join(' + ')} -> ${r.output.itemName})`),
   };
 }

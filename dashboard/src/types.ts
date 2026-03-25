@@ -41,6 +41,7 @@ export interface LocationData {
   resources: { type: string; quantity: number; maxQuantity: number; availability: string }[];
   agents: { id: string; name: string }[];
   connectedTo: string[];
+  structures?: { type: string; properties: Record<string, unknown> }[];
 }
 
 export interface MapData {

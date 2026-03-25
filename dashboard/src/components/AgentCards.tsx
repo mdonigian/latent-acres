@@ -1,4 +1,6 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import Markdown from 'react-markdown';
 import type { AgentData, AgentDetail } from '../types.js';
 
 const ITEM_ICONS: Record<string, string> = {
@@ -20,12 +22,19 @@ function StatBar({ label, value, max, color }: { label: string; value: number; m
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="w-14 text-gray-400">{label}</span>
-      <div className="flex-1 bg-gray-700/50 rounded-full h-2">
-        <div className={`h-2 rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+      <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+        <div className={`h-1.5 rounded-full ${color} transition-all duration-500 stat-bar-shimmer`} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-8 text-right tabular-nums">{value}</span>
     </div>
   );
+}
+
+function getMoodEmoji(agent: AgentData): string {
+  if (agent.energy < 20) return '\u{1F634}'; // exhausted
+  if (agent.hunger > 60 || agent.health < 50) return '\u{1F630}'; // anxious
+  if (agent.health > 70 && agent.hunger < 30) return '\u{1F60A}'; // happy
+  return '\u{1F610}'; // content
 }
 
 function AgentCard({ agent, selected, onClick }: { agent: AgentData; selected: boolean; onClick: () => void }) {
@@ -39,6 +48,7 @@ function AgentCard({ agent, selected, onClick }: { agent: AgentData; selected: b
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="font-semibold text-sm">{agent.name}</span>
+        {!dead && <span data-testid={`mood-${agent.id}`} title="mood">{getMoodEmoji(agent)}</span>}
         {agent.isChieftain && <span title="Chieftain">{'\u{1F451}'}</span>}
         {dead && <span className="text-red-400 text-xs ml-auto">{agent.isBanished ? 'Banished' : 'Dead'}</span>}
       </div>
@@ -88,9 +98,9 @@ function AgentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]" onClick={onClose}>
       <div
-        className="bg-gray-800 border border-gray-600/50 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto m-4"
+        className="bg-gray-800/95 border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -193,7 +203,9 @@ function AgentModal({
                     <div className="text-[10px] text-amber-600/70 font-semibold mb-1.5 uppercase tracking-wider">
                       Epoch {j.epoch}
                     </div>
-                    <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-serif">{j.entry}</p>
+                    <div className="text-xs text-gray-300 leading-relaxed font-serif prose prose-invert prose-xs max-w-none">
+                      <Markdown>{j.entry}</Markdown>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -246,8 +258,9 @@ export function AgentCards({
           />
         ))}
       </div>
-      {detail && (
-        <AgentModal detail={detail} onClose={() => onSelectAgent(null)} />
+      {detail && createPortal(
+        <AgentModal detail={detail} onClose={() => onSelectAgent(null)} />,
+        document.body,
       )}
     </>
   );

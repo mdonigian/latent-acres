@@ -1,2 +1,6 @@
 .specs/config.local.yaml
 .env
+node_modules/
+data/
+.lisa/
+dashboard/node_modules/

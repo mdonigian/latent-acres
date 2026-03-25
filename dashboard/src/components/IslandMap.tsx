@@ -37,6 +37,17 @@ const RES_ICONS: Record<string, string> = {
   fiber: '\u{1F9F6}', freshwater: '\u{1F4A7}',
 };
 
+const STRUCTURE_ICONS: Record<string, string> = {
+  shelter: '\u{1F3E0}',
+  hut: '\u{1F3E1}',
+  storage_chest: '\u{1F4E6}',
+  signal_fire: '\u{1F525}',
+  defensive_wall: '\u{1F6E1}',
+  rain_collector: '\u{1F4A7}',
+  drying_rack: '\u{1F7EB}',
+  kiln: '\u{1F3ED}',
+};
+
 function LocationPopover({
   location, meta, containerRef, onClose,
 }: {
@@ -270,6 +281,23 @@ export function IslandMap({
                         <circle cx={rx} cy={ry} r="3" fill="black" opacity="0.2" />
                         <circle cx={rx} cy={ry - 0.5} r="2.5" fill={c} opacity="0.9" />
                       </g>
+                    );
+                  })}
+                </g>
+              )}
+
+              {/* Structure icons below resource dots */}
+              {loc && loc.structures && loc.structures.length > 0 && (
+                <g style={{ pointerEvents: 'none' }} data-testid={`structures-${id}`}>
+                  {loc.structures.slice(0, 4).map((s, si) => {
+                    const count = Math.min(loc!.structures!.length, 4);
+                    const sx = meta.x + CARD_W / 2 - ((count - 1) * 11) / 2 + si * 11;
+                    const sy2 = meta.y + CARD_H - 9;
+                    const icon = STRUCTURE_ICONS[s.type] ?? '\u{1F3D7}';
+                    return (
+                      <text key={si} x={sx} y={sy2} textAnchor="middle" fontSize="8" data-testid={`structure-icon-${s.type}`}>
+                        {icon}
+                      </text>
                     );
                   })}
                 </g>

@@ -3,9 +3,10 @@ import type Database from 'better-sqlite3';
 import {
   getSimulation, getAllAgents, getAgent, getLivingAgents,
   getAgentInventory, getShortTermMemory,
-  getAllLocations, getResourcesAtLocation,
+  getAllLocations, getResourcesAtLocation, getStructuresAtLocation,
   getMotionsByEpoch, getVotesForMotion,
   getJournalEntries, getAllJournalEntries,
+  getEpochRecap,
   type AgentRow, type EventLogRow,
 } from '../db/queries.js';
 
@@ -50,9 +51,10 @@ export function createRoutes(db: Database.Database): Router {
     let personality = {};
     try { personality = JSON.parse(agent.personality_json); } catch {}
 
+    // How THIS agent feels about others (directional: agent_a's sentiment toward agent_b)
     const relationships = db.prepare(
-      'SELECT agent_b AS other, sentiment FROM relationships WHERE agent_a = ? UNION SELECT agent_a AS other, sentiment FROM relationships WHERE agent_b = ?'
-    ).all(agent.id, agent.id) as { other: string; sentiment: number }[];
+      'SELECT agent_b AS other, sentiment FROM relationships WHERE agent_a = ?'
+    ).all(agent.id) as { other: string; sentiment: number }[];
 
     const journal = getJournalEntries(db, agent.id, 10);
 
@@ -121,8 +123,22 @@ export function createRoutes(db: Database.Database): Router {
           availability: r.quantity / r.max_quantity < 0.3 ? 'scarce' : r.quantity / r.max_quantity < 0.7 ? 'moderate' : 'abundant',
         })),
         agents: presentAgents.map(a => ({ id: a.id, name: a.name })),
+        structures: getStructuresAtLocation(db, loc.id).map(s => ({
+          type: s.structure_type,
+          properties: s.properties_json ? JSON.parse(s.properties_json) : {},
+        })),
       };
     }));
+  });
+
+  router.get('/recap/:epoch', (req: Request, res: Response) => {
+    const epoch = parseInt(req.params.epoch);
+    const recap = getEpochRecap(db, epoch);
+    if (!recap) {
+      res.status(404).json({ error: 'Recap not yet generated' });
+      return;
+    }
+    res.json({ epoch, recap: recap.recap_text });
   });
 
   router.get('/map', (_req: Request, res: Response) => {
@@ -189,9 +205,28 @@ export function createRoutes(db: Database.Database): Router {
       "SELECT * FROM event_log WHERE epoch = ? AND event_type LIKE 'council%' ORDER BY id"
     ).all(epoch) as EventLogRow[];
 
+    // Extract transcript from council_adjourned event
+    const adjournedEvent = events.find(e => e.event_type === 'council_adjourned');
+    let transcript: string[] = [];
+    if (adjournedEvent) {
+      try { transcript = JSON.parse(adjournedEvent.data_json).transcript ?? []; } catch {}
+    }
+
+    // Extract debate speech
+    const speeches = events
+      .filter(e => e.event_type === 'council_speech')
+      .map(e => {
+        const data = JSON.parse(e.data_json);
+        const agents = getAllAgents(db);
+        const agentName = agents.find(a => a.id === e.agent_id)?.name ?? e.agent_id;
+        return { agentId: e.agent_id, agentName, type: data.type, message: data.message, motionId: data.motionId, round: data.round };
+      });
+
     res.json({
       epoch,
       motions: motions.map(formatMotion),
+      transcript,
+      speeches,
       events: events.map(e => ({ tick: e.tick, type: e.event_type, data: JSON.parse(e.data_json) })),
     });
   });
